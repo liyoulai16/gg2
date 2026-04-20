@@ -132,7 +132,7 @@ class MainWindow(QMainWindow):
                 border: 2px solid #4285f4;
             }
             QSpinBox, QDoubleSpinBox {
-                padding-right: 50px;
+                padding: 10px;
                 border: 1px solid #e0e0e0;
                 border-radius: 4px;
                 font-size: 13px;
@@ -142,33 +142,12 @@ class MainWindow(QMainWindow):
                 border: 2px solid #4285f4;
             }
             QSpinBox::up-button, QDoubleSpinBox::up-button {
-                subcontrol-origin: border;
-                subcontrol-position: right;
-                width: 25px;
+                width: 0px;
                 border: none;
-                border-left: 1px solid #e0e0e0;
-                border-top-right-radius: 4px;
-                background-color: #f5f5f5;
-                margin: 1px;
-                margin-right: 26px;
             }
             QSpinBox::down-button, QDoubleSpinBox::down-button {
-                subcontrol-origin: border;
-                subcontrol-position: right;
-                width: 25px;
+                width: 0px;
                 border: none;
-                border-left: 1px solid #e0e0e0;
-                border-bottom-right-radius: 4px;
-                background-color: #f5f5f5;
-                margin: 1px;
-            }
-            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
-            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
-                background-color: #e8e8e8;
-            }
-            QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
-            QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {
-                background-color: #d0d0d0;
             }
             QTableWidget {
                 border: 1px solid #e0e0e0;

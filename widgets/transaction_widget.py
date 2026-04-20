@@ -146,6 +146,7 @@ class TransactionWidget(QWidget):
             '日期', '账户', '类型', '分类', '金额', '描述', '操作'
         ])
         self.trans_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.trans_table.verticalHeader().setDefaultSectionSize(60)
         self.trans_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.trans_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.trans_table.setAlternatingRowColors(True)
@@ -255,17 +256,17 @@ class TransactionWidget(QWidget):
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
             btn_layout.setContentsMargins(0, 0, 0, 0)
-            btn_layout.setSpacing(5)
+            btn_layout.setSpacing(8)
 
             delete_btn = QPushButton('删除')
-            delete_btn.setFixedSize(55, 30)
+            delete_btn.setFixedSize(70, 32)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-size: 12px;
+                    font-size: 13px;
                     font-weight: bold;
                 }
                 QPushButton:hover {
