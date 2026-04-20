@@ -257,11 +257,17 @@ class TransactionWidget(QWidget):
             btn_layout.setContentsMargins(5, 0, 5, 0)
 
             delete_btn = QPushButton('删除')
+            delete_btn.setMinimumWidth(55)
+            delete_btn.setMinimumHeight(28)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
-                    padding: 5px 10px;
-                    font-size: 11px;
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    font-weight: bold;
                 }
                 QPushButton:hover {
                     background-color: #d33427;

@@ -33,7 +33,7 @@ class MainWindow(QMainWindow):
 
         self.tab_widget = QTabWidget()
         self.tab_widget.setDocumentMode(True)
-        self.tab_widget.setMovable(True)
+        self.tab_widget.setMovable(False)
 
         self.transaction_widget = TransactionWidget(self.db)
         self.account_widget = AccountWidget(self.db)
@@ -122,15 +122,62 @@ class MainWindow(QMainWindow):
             QPushButton[class="success"]:hover {
                 background-color: #2d8e47;
             }
-            QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox, QDateEdit {
+            QLineEdit, QTextEdit, QComboBox, QDateEdit {
                 padding: 10px;
                 border: 1px solid #e0e0e0;
                 border-radius: 4px;
                 font-size: 13px;
             }
-            QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, 
-            QDoubleSpinBox:focus, QComboBox:focus, QDateEdit:focus {
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateEdit:focus {
                 border: 2px solid #4285f4;
+            }
+            QSpinBox, QDoubleSpinBox {
+                padding: 8px 5px 8px 10px;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                font-size: 13px;
+                min-height: 20px;
+            }
+            QSpinBox:focus, QDoubleSpinBox:focus {
+                border: 2px solid #4285f4;
+            }
+            QSpinBox::up-button, QDoubleSpinBox::up-button {
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 30px;
+                border: none;
+                border-left: 1px solid #e0e0e0;
+                border-top-right-radius: 4px;
+                background-color: #f5f5f5;
+                margin: 1px;
+            }
+            QSpinBox::down-button, QDoubleSpinBox::down-button {
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 30px;
+                border: none;
+                border-left: 1px solid #e0e0e0;
+                border-bottom-right-radius: 4px;
+                background-color: #f5f5f5;
+                margin: 1px;
+            }
+            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+                background-color: #e8e8e8;
+            }
+            QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
+            QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {
+                background-color: #d0d0d0;
+            }
+            QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+                width: 10px;
+                height: 10px;
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEwIDZMMTUgMTJINVoiIGZpbGw9IiM1ZjYzNjgiLz4KPC9zdmc+);
+            }
+            QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+                width: 10px;
+                height: 10px;
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEwIDE0TDE1IDhINVoiIGZpbGw9IiM1ZjYzNjgiLz4KPC9zdmc+);
             }
             QTableWidget {
                 border: 1px solid #e0e0e0;
