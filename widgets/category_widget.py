@@ -77,6 +77,7 @@ class CategoryWidget(QWidget):
         self.income_table.setHorizontalHeaderLabels(['ID', '分类名称', '创建时间', '操作'])
         self.income_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.income_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.income_table.verticalHeader().setDefaultSectionSize(60)
         self.income_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.income_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.income_table.setAlternatingRowColors(True)
@@ -92,6 +93,7 @@ class CategoryWidget(QWidget):
         self.expense_table.setHorizontalHeaderLabels(['ID', '分类名称', '创建时间', '操作'])
         self.expense_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.expense_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.expense_table.verticalHeader().setDefaultSectionSize(60)
         self.expense_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.expense_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.expense_table.setAlternatingRowColors(True)
@@ -122,17 +124,17 @@ class CategoryWidget(QWidget):
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
             btn_layout.setContentsMargins(0, 0, 0, 0)
-            btn_layout.setSpacing(5)
+            btn_layout.setSpacing(8)
 
             edit_btn = QPushButton('编辑')
-            edit_btn.setFixedSize(55, 30)
+            edit_btn.setFixedSize(70, 32)
             edit_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #4285f4;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-size: 12px;
+                    font-size: 13px;
                     font-weight: bold;
                 }
                 QPushButton:hover {
@@ -143,14 +145,14 @@ class CategoryWidget(QWidget):
             btn_layout.addWidget(edit_btn)
 
             delete_btn = QPushButton('删除')
-            delete_btn.setFixedSize(55, 30)
+            delete_btn.setFixedSize(70, 32)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-size: 12px;
+                    font-size: 13px;
                     font-weight: bold;
                 }
                 QPushButton:hover {
