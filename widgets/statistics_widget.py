@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QDateEdit, QSplitter, QFrame, QHeaderView,
     QAbstractItemView, QGraphicsView, QGraphicsScene,
     QGraphicsEllipseItem, QGraphicsTextItem, QGraphicsLineItem,
-    QGraphicsRectItem, QSpinBox
+    QGraphicsRectItem, QSpinBox, QScrollArea
 )
 from PyQt6.QtCore import Qt, QDate, QPointF, QRectF
 from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QPainterPath
@@ -26,7 +26,11 @@ class StatisticsWidget(QWidget):
         self.refresh_data()
 
     def init_ui(self):
-        layout = QVBoxLayout(self)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(20)
         layout.setContentsMargins(20, 20, 20, 20)
 
@@ -89,6 +93,7 @@ class StatisticsWidget(QWidget):
         category_type_layout = QHBoxLayout()
         self.category_type_combo = QComboBox()
         self.category_type_combo.addItems(['支出', '收入'])
+        self.category_type_combo.setFixedHeight(30)
         self.category_type_combo.currentIndexChanged.connect(self.refresh_data)
         category_type_layout.addWidget(QLabel('类型:'))
         category_type_layout.addWidget(self.category_type_combo)
@@ -118,6 +123,7 @@ class StatisticsWidget(QWidget):
         trend_type_layout = QHBoxLayout()
         self.trend_type_combo = QComboBox()
         self.trend_type_combo.addItems(['收支对比', '仅收入', '仅支出'])
+        self.trend_type_combo.setFixedHeight(30)
         self.trend_type_combo.currentIndexChanged.connect(self.refresh_data)
         trend_type_layout.addWidget(QLabel('显示:'))
         trend_type_layout.addWidget(self.trend_type_combo)
@@ -140,6 +146,7 @@ class StatisticsWidget(QWidget):
         self.year_spin = QSpinBox()
         self.year_spin.setRange(2000, 2100)
         self.year_spin.setValue(datetime.now().year)
+        self.year_spin.setFixedHeight(30)
         self.year_spin.valueChanged.connect(self.refresh_data)
         monthly_filter_layout.addWidget(QLabel('年份:'))
         monthly_filter_layout.addWidget(self.year_spin)
@@ -157,6 +164,11 @@ class StatisticsWidget(QWidget):
         monthly_layout.addWidget(self.monthly_table)
 
         layout.addWidget(monthly_group)
+        
+        scroll_area.setWidget(content_widget)
+        
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(scroll_area)
 
     def create_stat_card(self, title):
         card = QFrame()
