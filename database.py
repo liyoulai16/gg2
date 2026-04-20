@@ -1,6 +1,7 @@
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+from calendar import monthrange
 
 
 class Database:
@@ -309,3 +310,196 @@ class Database:
         row = cursor.fetchone()
         conn.close()
         return row[0] if row and row[0] else 0
+
+    def get_stats_by_period(self, start_date, end_date):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT type, SUM(amount) 
+            FROM transactions 
+            WHERE date >= ? AND date <= ?
+            GROUP BY type
+        ''', (start_date, end_date))
+        rows = cursor.fetchall()
+        conn.close()
+
+        income = 0
+        expense = 0
+        for row in rows:
+            if row[0] == 'income':
+                income = row[1] or 0
+            elif row[0] == 'expense':
+                expense = row[1] or 0
+
+        return {
+            'income': income,
+            'expense': expense,
+            'balance': income - expense
+        }
+
+    def get_today_stats(self):
+        today = datetime.now().strftime('%Y-%m-%d')
+        return self.get_stats_by_period(today, today)
+
+    def get_week_stats(self):
+        today = datetime.now()
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        return self.get_stats_by_period(
+            start_of_week.strftime('%Y-%m-%d'),
+            end_of_week.strftime('%Y-%m-%d')
+        )
+
+    def get_month_stats(self):
+        today = datetime.now()
+        _, days_in_month = monthrange(today.year, today.month)
+        start_of_month = today.replace(day=1)
+        end_of_month = today.replace(day=days_in_month)
+        return self.get_stats_by_period(
+            start_of_month.strftime('%Y-%m-%d'),
+            end_of_month.strftime('%Y-%m-%d')
+        )
+
+    def get_year_stats(self):
+        today = datetime.now()
+        start_of_year = today.replace(month=1, day=1)
+        end_of_year = today.replace(month=12, day=31)
+        return self.get_stats_by_period(
+            start_of_year.strftime('%Y-%m-%d'),
+            end_of_year.strftime('%Y-%m-%d')
+        )
+
+    def get_category_stats(self, type_, start_date=None, end_date=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        query = '''
+            SELECT c.name, SUM(t.amount) as total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.type = ?
+        '''
+        params = [type_]
+
+        if start_date:
+            query += ' AND t.date >= ?'
+            params.append(start_date)
+        if end_date:
+            query += ' AND t.date <= ?'
+            params.append(end_date)
+
+        query += ' GROUP BY c.id, c.name ORDER BY total DESC'
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        total = sum(row[1] or 0 for row in rows)
+        result = []
+        for row in rows:
+            amount = row[1] or 0
+            percentage = (amount / total * 100) if total > 0 else 0
+            result.append({
+                'name': row[0],
+                'amount': amount,
+                'percentage': percentage
+            })
+
+        return result, total
+
+    def get_date_trend(self, start_date, end_date, type_=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if type_:
+            cursor.execute('''
+                SELECT date, type, SUM(amount)
+                FROM transactions
+                WHERE date >= ? AND date <= ? AND type = ?
+                GROUP BY date, type
+                ORDER BY date
+            ''', (start_date, end_date, type_))
+        else:
+            cursor.execute('''
+                SELECT date, type, SUM(amount)
+                FROM transactions
+                WHERE date >= ? AND date <= ?
+                GROUP BY date, type
+                ORDER BY date
+            ''', (start_date, end_date))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        date_data = {}
+        for row in rows:
+            date = row[0]
+            t_type = row[1]
+            amount = row[2] or 0
+
+            if date not in date_data:
+                date_data[date] = {'income': 0, 'expense': 0}
+
+            if t_type == 'income':
+                date_data[date]['income'] = amount
+            else:
+                date_data[date]['expense'] = amount
+
+        result = []
+        for date in sorted(date_data.keys()):
+            result.append({
+                'date': date,
+                'income': date_data[date]['income'],
+                'expense': date_data[date]['expense'],
+                'balance': date_data[date]['income'] - date_data[date]['expense']
+            })
+
+        return result
+
+    def get_monthly_summary(self, year=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if year is None:
+            year = datetime.now().year
+
+        cursor.execute('''
+            SELECT 
+                strftime('%Y-%m', date) as month,
+                type,
+                SUM(amount) as total
+            FROM transactions
+            WHERE strftime('%Y', date) = ?
+            GROUP BY month, type
+            ORDER BY month
+        ''', (str(year),))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        monthly_data = {}
+        for row in rows:
+            month = row[0]
+            t_type = row[1]
+            amount = row[2] or 0
+
+            if month not in monthly_data:
+                monthly_data[month] = {'income': 0, 'expense': 0}
+
+            if t_type == 'income':
+                monthly_data[month]['income'] = amount
+            else:
+                monthly_data[month]['expense'] = amount
+
+        result = []
+        for month in sorted(monthly_data.keys()):
+            data = monthly_data[month]
+            result.append({
+                'month': month,
+                'income': data['income'],
+                'expense': data['expense'],
+                'balance': data['income'] - data['expense']
+            })
+
+        return result
