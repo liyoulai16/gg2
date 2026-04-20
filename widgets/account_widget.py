@@ -100,17 +100,16 @@ class AccountWidget(QWidget):
 
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(5, 0, 5, 0)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_layout.setSpacing(5)
 
             edit_btn = QPushButton('编辑')
-            edit_btn.setMinimumWidth(55)
-            edit_btn.setMinimumHeight(28)
+            edit_btn.setFixedSize(55, 30)
             edit_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #4285f4;
                     color: white;
                     border: none;
-                    padding: 6px 12px;
                     border-radius: 4px;
                     font-size: 12px;
                     font-weight: bold;
@@ -123,14 +122,12 @@ class AccountWidget(QWidget):
             btn_layout.addWidget(edit_btn)
 
             delete_btn = QPushButton('删除')
-            delete_btn.setMinimumWidth(55)
-            delete_btn.setMinimumHeight(28)
+            delete_btn.setFixedSize(55, 30)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
                     color: white;
                     border: none;
-                    padding: 6px 12px;
                     border-radius: 4px;
                     font-size: 12px;
                     font-weight: bold;
