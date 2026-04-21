@@ -81,6 +81,7 @@ class Database:
         self._create_default_categories(cursor)
         self._create_default_account(cursor)
         self._create_debt_tables(cursor)
+        self._create_quick_entry_presets_table(cursor)
 
         conn.commit()
         conn.close()
@@ -1183,3 +1184,213 @@ class Database:
                 summary[key] = {'amount': amount, 'count': count}
 
         return summary
+
+    def _create_quick_entry_presets_table(self, cursor):
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS quick_entry_presets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                type TEXT NOT NULL,
+                account_id INTEGER NOT NULL,
+                category_id INTEGER NOT NULL,
+                description TEXT,
+                is_default INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (account_id) REFERENCES accounts (id),
+                FOREIGN KEY (category_id) REFERENCES categories (id)
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        ''')
+
+    def add_quick_entry_preset(self, name, type_, account_id, category_id, description='', is_default=False):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            if is_default:
+                cursor.execute('UPDATE quick_entry_presets SET is_default = 0, updated_at = ? WHERE type = ?', (now, type_))
+            
+            cursor.execute('''
+                INSERT INTO quick_entry_presets (name, type, account_id, category_id, description, is_default, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (name, type_, account_id, category_id, description, 1 if is_default else 0, now, now))
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+        finally:
+            conn.close()
+
+    def get_all_quick_entry_presets(self, type_=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        query = '''
+            SELECT p.id, p.name, p.type, p.account_id, a.name as account_name,
+                   p.category_id, c.name as category_name, p.description, p.is_default
+            FROM quick_entry_presets p
+            JOIN accounts a ON p.account_id = a.id
+            JOIN categories c ON p.category_id = c.id
+            WHERE 1=1
+        '''
+        params = []
+        
+        if type_:
+            query += ' AND p.type = ?'
+            params.append(type_)
+        
+        query += ' ORDER BY p.is_default DESC, p.id'
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [{
+            'id': row[0],
+            'name': row[1],
+            'type': row[2],
+            'account_id': row[3],
+            'account_name': row[4],
+            'category_id': row[5],
+            'category_name': row[6],
+            'description': row[7],
+            'is_default': bool(row[8])
+        } for row in rows]
+
+    def get_default_quick_entry_preset(self, type_):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT p.id, p.name, p.type, p.account_id, a.name as account_name,
+                   p.category_id, c.name as category_name, p.description, p.is_default
+            FROM quick_entry_presets p
+            JOIN accounts a ON p.account_id = a.id
+            JOIN categories c ON p.category_id = c.id
+            WHERE p.type = ? AND p.is_default = 1
+            ORDER BY p.id
+            LIMIT 1
+        ''', (type_,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return {
+                'id': row[0],
+                'name': row[1],
+                'type': row[2],
+                'account_id': row[3],
+                'account_name': row[4],
+                'category_id': row[5],
+                'category_name': row[6],
+                'description': row[7],
+                'is_default': bool(row[8])
+            }
+        return None
+
+    def update_quick_entry_preset(self, preset_id, name=None, account_id=None, category_id=None, description=None, is_default=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            updates = []
+            params = []
+            
+            if name is not None:
+                updates.append('name = ?')
+                params.append(name)
+            if account_id is not None:
+                updates.append('account_id = ?')
+                params.append(account_id)
+            if category_id is not None:
+                updates.append('category_id = ?')
+                params.append(category_id)
+            if description is not None:
+                updates.append('description = ?')
+                params.append(description)
+            
+            if is_default is not None:
+                cursor.execute('SELECT type FROM quick_entry_presets WHERE id = ?', (preset_id,))
+                row = cursor.fetchone()
+                if row:
+                    type_ = row[0]
+                    cursor.execute('UPDATE quick_entry_presets SET is_default = 0, updated_at = ? WHERE type = ?', (now, type_))
+                updates.append('is_default = ?')
+                params.append(1 if is_default else 0)
+            
+            if not updates:
+                conn.close()
+                return True
+            
+            updates.append('updated_at = ?')
+            params.append(now)
+            params.append(preset_id)
+            
+            query = f"UPDATE quick_entry_presets SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error updating quick entry preset: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def delete_quick_entry_preset(self, preset_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM quick_entry_presets WHERE id = ?', (preset_id,))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error deleting quick entry preset: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def set_app_setting(self, key, value):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute('''
+                INSERT INTO app_settings (key, value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
+            ''', (key, str(value), now, str(value), now))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error setting app setting: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_app_setting(self, key, default_value=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT value FROM app_settings WHERE key = ?', (key,))
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                return row[0]
+            return default_value
+        except Exception as e:
+            conn.close()
+            print(f"Error getting app setting: {e}")
+            return default_value
