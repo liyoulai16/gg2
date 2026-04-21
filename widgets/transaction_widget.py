@@ -209,10 +209,11 @@ class TransactionWidget(QWidget):
         self.trans_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.trans_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.trans_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.trans_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        self.trans_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.trans_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         self.trans_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
-        self.trans_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        self.trans_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Fixed)
+        self.trans_table.setColumnWidth(7, 180)
         self.trans_table.verticalHeader().setDefaultSectionSize(60)
         self.trans_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.trans_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -338,18 +339,18 @@ class TransactionWidget(QWidget):
 
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(0, 0, 0, 0)
-            btn_layout.setSpacing(5)
+            btn_layout.setContentsMargins(10, 0, 10, 0)
+            btn_layout.setSpacing(12)
 
             split_btn = QPushButton('拆分')
-            split_btn.setFixedSize(55, 32)
+            split_btn.setFixedSize(70, 36)
             split_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #4285f4;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-size: 12px;
+                    font-size: 13px;
                     font-weight: bold;
                 }
                 QPushButton:hover {
@@ -360,14 +361,14 @@ class TransactionWidget(QWidget):
             btn_layout.addWidget(split_btn)
 
             delete_btn = QPushButton('删除')
-            delete_btn.setFixedSize(55, 32)
+            delete_btn.setFixedSize(70, 36)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-size: 12px;
+                    font-size: 13px;
                     font-weight: bold;
                 }
                 QPushButton:hover {

@@ -473,10 +473,11 @@ class TrashWidget(QWidget):
         self.trash_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.trash_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.trash_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.trash_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        self.trash_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.trash_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         self.trash_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        self.trash_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        self.trash_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Fixed)
+        self.trash_table.setColumnWidth(7, 200)
         self.trash_table.verticalHeader().setDefaultSectionSize(50)
         self.trash_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.trash_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -572,11 +573,11 @@ class TrashWidget(QWidget):
 
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(0, 0, 0, 0)
-            btn_layout.setSpacing(8)
+            btn_layout.setContentsMargins(10, 0, 10, 0)
+            btn_layout.setSpacing(12)
 
             restore_btn = QPushButton('恢复')
-            restore_btn.setFixedSize(60, 32)
+            restore_btn.setFixedSize(70, 36)
             restore_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #4285f4;
@@ -584,7 +585,7 @@ class TrashWidget(QWidget):
                     border: none;
                     border-radius: 4px;
                     font-weight: bold;
-                    font-size: 12px;
+                    font-size: 13px;
                 }
                 QPushButton:hover {
                     background-color: #3367d6;
@@ -594,7 +595,7 @@ class TrashWidget(QWidget):
             btn_layout.addWidget(restore_btn)
 
             delete_btn = QPushButton('永久删除')
-            delete_btn.setFixedSize(80, 32)
+            delete_btn.setFixedSize(90, 36)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
@@ -602,7 +603,7 @@ class TrashWidget(QWidget):
                     border: none;
                     border-radius: 4px;
                     font-weight: bold;
-                    font-size: 12px;
+                    font-size: 13px;
                 }
                 QPushButton:hover {
                     background-color: #d33427;
