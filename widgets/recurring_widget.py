@@ -73,12 +73,14 @@ class RecurringWidget(QWidget):
         self.name_edit.setMinimumWidth(150)
         row1_layout.addWidget(name_label)
         row1_layout.addWidget(self.name_edit)
+        row1_layout.addSpacing(40)
 
         account_label = QLabel('账户:')
         self.account_combo = QComboBox()
         self.account_combo.setMinimumWidth(120)
         row1_layout.addWidget(account_label)
         row1_layout.addWidget(self.account_combo)
+        row1_layout.addSpacing(40)
 
         category_label = QLabel('分类:')
         self.category_combo = QComboBox()
@@ -86,6 +88,7 @@ class RecurringWidget(QWidget):
         row1_layout.addWidget(category_label)
         row1_layout.addWidget(self.category_combo)
 
+        row1_layout.addStretch()
         add_layout.addLayout(row1_layout)
 
         row2_layout = QHBoxLayout()
@@ -100,6 +103,7 @@ class RecurringWidget(QWidget):
         self.amount_spin.installEventFilter(self)
         row2_layout.addWidget(amount_label)
         row2_layout.addWidget(self.amount_spin)
+        row2_layout.addSpacing(40)
 
         frequency_label = QLabel('周期:')
         self.frequency_combo = QComboBox()
@@ -108,6 +112,7 @@ class RecurringWidget(QWidget):
         self.frequency_combo.setMinimumWidth(100)
         row2_layout.addWidget(frequency_label)
         row2_layout.addWidget(self.frequency_combo)
+        row2_layout.addSpacing(40)
 
         start_label = QLabel('开始日期:')
         self.start_date_edit = QDateEdit()
@@ -117,6 +122,7 @@ class RecurringWidget(QWidget):
         self.start_date_edit.installEventFilter(self)
         row2_layout.addWidget(start_label)
         row2_layout.addWidget(self.start_date_edit)
+        row2_layout.addSpacing(40)
 
         end_label = QLabel('结束日期:')
         self.end_date_edit = QDateEdit()
@@ -131,6 +137,7 @@ class RecurringWidget(QWidget):
         row2_layout.addWidget(self.end_date_edit)
         row2_layout.addWidget(self.end_checkbox)
 
+        row2_layout.addStretch()
         add_layout.addLayout(row2_layout)
 
         row3_layout = QHBoxLayout()
@@ -140,11 +147,14 @@ class RecurringWidget(QWidget):
         self.desc_edit.setPlaceholderText('可选，输入备注信息...')
         row3_layout.addWidget(desc_label)
         row3_layout.addWidget(self.desc_edit)
+        row3_layout.addSpacing(40)
 
         self.auto_generate_checkbox = QCheckBox('自动入账')
         self.auto_generate_checkbox.setChecked(True)
         self.auto_generate_checkbox.setToolTip('勾选后到期自动生成交易记录，不勾选则仅提醒')
         row3_layout.addWidget(self.auto_generate_checkbox)
+
+        row3_layout.addStretch()
 
         add_btn = QPushButton('✓ 添加周期性账单')
         add_btn.setMinimumWidth(150)
