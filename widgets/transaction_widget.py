@@ -57,11 +57,13 @@ class TransactionWidget(QWidget):
         self.account_combo = QComboBox()
         form_layout.addWidget(account_label)
         form_layout.addWidget(self.account_combo)
+        form_layout.addSpacing(40)
 
         category_label = QLabel('分类:')
         self.category_combo = QComboBox()
         form_layout.addWidget(category_label)
         form_layout.addWidget(self.category_combo)
+        form_layout.addSpacing(40)
 
         amount_label = QLabel('金额:')
         self.amount_spin = QDoubleSpinBox()
@@ -72,6 +74,7 @@ class TransactionWidget(QWidget):
         self.amount_spin.installEventFilter(self)
         form_layout.addWidget(amount_label)
         form_layout.addWidget(self.amount_spin)
+        form_layout.addSpacing(40)
 
         date_label = QLabel('日期:')
         self.date_edit = QDateEdit()
@@ -81,6 +84,7 @@ class TransactionWidget(QWidget):
         form_layout.addWidget(date_label)
         form_layout.addWidget(self.date_edit)
 
+        form_layout.addStretch()
         add_layout.addLayout(form_layout)
 
         desc_layout = QHBoxLayout()
@@ -105,12 +109,14 @@ class TransactionWidget(QWidget):
         self.filter_account_combo = QComboBox()
         filter_layout.addWidget(filter_account_label)
         filter_layout.addWidget(self.filter_account_combo)
+        filter_layout.addSpacing(30)
 
         filter_type_label = QLabel('类型:')
         self.filter_type_combo = QComboBox()
         self.filter_type_combo.addItems(['全部', '收入', '支出'])
         filter_layout.addWidget(filter_type_label)
         filter_layout.addWidget(self.filter_type_combo)
+        filter_layout.addSpacing(30)
 
         start_date_label = QLabel('开始日期:')
         self.start_date_edit = QDateEdit()
@@ -119,6 +125,7 @@ class TransactionWidget(QWidget):
         self.start_date_edit.installEventFilter(self)
         filter_layout.addWidget(start_date_label)
         filter_layout.addWidget(self.start_date_edit)
+        filter_layout.addSpacing(30)
 
         end_date_label = QLabel('结束日期:')
         self.end_date_edit = QDateEdit()
@@ -127,6 +134,7 @@ class TransactionWidget(QWidget):
         self.end_date_edit.installEventFilter(self)
         filter_layout.addWidget(end_date_label)
         filter_layout.addWidget(self.end_date_edit)
+        filter_layout.addSpacing(30)
 
         filter_btn = QPushButton('🔍 筛选')
         filter_btn.clicked.connect(self.filter_transactions)
