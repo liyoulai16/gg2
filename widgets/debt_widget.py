@@ -19,6 +19,12 @@ class DebtWidget(QWidget):
         self.init_ui()
         self.refresh_data()
 
+    def eventFilter(self, obj, event):
+        if event.type() == event.Type.Wheel:
+            if isinstance(obj, (QDoubleSpinBox, QSpinBox)):
+                return True
+        return super().eventFilter(obj, event)
+
     def init_ui(self):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -94,6 +100,7 @@ class DebtWidget(QWidget):
         self.amount_spin.setDecimals(2)
         self.amount_spin.setPrefix('¥ ')
         self.amount_spin.setValue(0)
+        self.amount_spin.installEventFilter(self)
         form_layout.addRow(amount_label, self.amount_spin)
 
         interest_label = QLabel('利率 (%):')
@@ -101,6 +108,7 @@ class DebtWidget(QWidget):
         self.interest_spin.setRange(0, 100)
         self.interest_spin.setDecimals(2)
         self.interest_spin.setValue(0)
+        self.interest_spin.installEventFilter(self)
         form_layout.addRow(interest_label, self.interest_spin)
 
         start_date_label = QLabel('开始日期:')
@@ -108,6 +116,7 @@ class DebtWidget(QWidget):
         self.start_date_edit.setCalendarPopup(True)
         self.start_date_edit.setDate(QDate.currentDate())
         self.start_date_edit.setDisplayFormat('yyyy-MM-dd')
+        self.start_date_edit.dateChanged.connect(self.on_start_date_changed)
         form_layout.addRow(start_date_label, self.start_date_edit)
 
         due_date_label = QLabel('到期日期:')
@@ -116,6 +125,7 @@ class DebtWidget(QWidget):
         self.due_date_edit.setDate(QDate.currentDate().addDays(30))
         self.due_date_edit.setDisplayFormat('yyyy-MM-dd')
         self.due_date_edit.setSpecialValueText('无到期日')
+        self.due_date_edit.setMinimumDate(self.start_date_edit.date())
         form_layout.addRow(due_date_label, self.due_date_edit)
 
         desc_label = QLabel('备注:')
@@ -221,6 +231,7 @@ class DebtWidget(QWidget):
         self.payment_amount_spin.setDecimals(2)
         self.payment_amount_spin.setPrefix('¥ ')
         self.payment_amount_spin.setValue(0)
+        self.payment_amount_spin.installEventFilter(self)
         add_payment_layout.addRow(payment_amount_label, self.payment_amount_spin)
 
         payment_due_label = QLabel('到期日期:')
@@ -405,7 +416,7 @@ class DebtWidget(QWidget):
             btn_layout.setSpacing(8)
 
             edit_btn = QPushButton('编辑')
-            edit_btn.setFixedSize(60, 32)
+            edit_btn.setFixedSize(80, 32)
             edit_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #4285f4;
@@ -423,7 +434,7 @@ class DebtWidget(QWidget):
             btn_layout.addWidget(edit_btn)
 
             delete_btn = QPushButton('删除')
-            delete_btn.setFixedSize(60, 32)
+            delete_btn.setFixedSize(80, 32)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
@@ -442,6 +453,11 @@ class DebtWidget(QWidget):
 
             self.debt_table.setCellWidget(row, 7, btn_widget)
 
+    def on_start_date_changed(self, new_date):
+        self.due_date_edit.setMinimumDate(new_date)
+        if self.due_date_edit.date() < new_date:
+            self.due_date_edit.setDate(new_date.addDays(30))
+
     def add_debt(self):
         counterparty = self.counterparty_edit.text().strip()
         if not counterparty:
@@ -453,10 +469,17 @@ class DebtWidget(QWidget):
             QMessageBox.warning(self, '警告', '请输入有效的金额！')
             return
 
+        start_date = self.start_date_edit.date()
+        due_date = self.due_date_edit.date()
+
+        if due_date < start_date:
+            QMessageBox.warning(self, '警告', '到期日期不能早于开始日期！')
+            return
+
         type_ = 'lend' if self.lend_radio.isChecked() else 'borrow'
         interest_rate = self.interest_spin.value()
-        start_date = self.start_date_edit.date().toString('yyyy-MM-dd')
-        due_date = self.due_date_edit.date().toString('yyyy-MM-dd')
+        start_date_str = start_date.toString('yyyy-MM-dd')
+        due_date_str = due_date.toString('yyyy-MM-dd')
         description = self.desc_edit.toPlainText().strip()
 
         debt_id = self.db.add_debt(
@@ -464,8 +487,8 @@ class DebtWidget(QWidget):
             counterparty=counterparty,
             amount=amount,
             interest_rate=interest_rate,
-            start_date=start_date,
-            due_date=due_date,
+            start_date=start_date_str,
+            due_date=due_date_str,
             description=description
         )
 
@@ -575,7 +598,7 @@ class DebtWidget(QWidget):
 
             if payment['status'] == 'pending':
                 pay_btn = QPushButton('标记已还')
-                pay_btn.setFixedSize(80, 32)
+                pay_btn.setFixedSize(100, 32)
                 pay_btn.setStyleSheet("""
                     QPushButton {
                         background-color: #34a853;
@@ -593,7 +616,7 @@ class DebtWidget(QWidget):
                 btn_layout.addWidget(pay_btn)
 
             delete_btn = QPushButton('删除')
-            delete_btn.setFixedSize(60, 32)
+            delete_btn.setFixedSize(80, 32)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
