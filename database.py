@@ -52,6 +52,32 @@ class Database:
             )
         ''')
 
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS budgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                year INTEGER NOT NULL,
+                month INTEGER NOT NULL,
+                amount REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(year, month)
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS category_budgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                budget_id INTEGER NOT NULL,
+                category_id INTEGER NOT NULL,
+                amount REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (budget_id) REFERENCES budgets (id),
+                FOREIGN KEY (category_id) REFERENCES categories (id),
+                UNIQUE(budget_id, category_id)
+            )
+        ''')
+
         self._create_default_categories(cursor)
         self._create_default_account(cursor)
 
@@ -503,3 +529,236 @@ class Database:
             })
 
         return result
+
+    def add_budget(self, year, month, amount):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute('''
+                INSERT INTO budgets (year, month, amount, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(year, month) DO UPDATE SET amount = ?, updated_at = ?
+            ''', (year, month, amount, now, now, amount, now))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error adding budget: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_budget(self, year, month):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, year, month, amount, created_at, updated_at
+            FROM budgets WHERE year = ? AND month = ?
+        ''', (year, month))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                'id': row[0],
+                'year': row[1],
+                'month': row[2],
+                'amount': row[3],
+                'created_at': row[4],
+                'updated_at': row[5]
+            }
+        return None
+
+    def get_all_budgets(self):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, year, month, amount, created_at, updated_at
+            FROM budgets ORDER BY year DESC, month DESC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+
+        result = []
+        for row in rows:
+            result.append({
+                'id': row[0],
+                'year': row[1],
+                'month': row[2],
+                'amount': row[3],
+                'created_at': row[4],
+                'updated_at': row[5]
+            })
+        return result
+
+    def delete_budget(self, year, month):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM category_budgets WHERE budget_id IN (SELECT id FROM budgets WHERE year = ? AND month = ?)', (year, month))
+            cursor.execute('DELETE FROM budgets WHERE year = ? AND month = ?', (year, month))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error deleting budget: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def add_category_budget(self, budget_id, category_id, amount):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute('''
+                INSERT INTO category_budgets (budget_id, category_id, amount, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(budget_id, category_id) DO UPDATE SET amount = ?, updated_at = ?
+            ''', (budget_id, category_id, amount, now, now, amount, now))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error adding category budget: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_category_budgets(self, budget_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT cb.id, cb.budget_id, cb.category_id, c.name as category_name,
+                   cb.amount, cb.created_at, cb.updated_at
+            FROM category_budgets cb
+            JOIN categories c ON cb.category_id = c.id
+            WHERE cb.budget_id = ?
+        ''', (budget_id,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        result = []
+        for row in rows:
+            result.append({
+                'id': row[0],
+                'budget_id': row[1],
+                'category_id': row[2],
+                'category_name': row[3],
+                'amount': row[4],
+                'created_at': row[5],
+                'updated_at': row[6]
+            })
+        return result
+
+    def delete_category_budget(self, category_budget_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM category_budgets WHERE id = ?', (category_budget_id,))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error deleting category budget: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_budget_usage(self, year, month):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        start_date = f"{year}-{month:02d}-01"
+        end_date = f"{year}-{month:02d}-{monthrange(year, month)[1]}"
+
+        cursor.execute('''
+            SELECT COALESCE(SUM(amount), 0)
+            FROM transactions
+            WHERE type = 'expense' AND date >= ? AND date <= ?
+        ''', (start_date, end_date))
+        total_spent = cursor.fetchone()[0] or 0
+
+        cursor.execute('''
+            SELECT id, amount FROM budgets WHERE year = ? AND month = ?
+        ''', (year, month))
+        budget_row = cursor.fetchone()
+
+        budget_id = None
+        budget_amount = 0
+
+        if budget_row:
+            budget_id = budget_row[0]
+            budget_amount = budget_row[1]
+
+        category_budgets = []
+        if budget_id:
+            cursor.execute('''
+                SELECT c.id, c.name, cb.amount as budget_amount,
+                       COALESCE(SUM(t.amount), 0) as spent_amount
+                FROM categories c
+                LEFT JOIN category_budgets cb ON c.id = cb.category_id AND cb.budget_id = ?
+                LEFT JOIN transactions t ON c.id = t.category_id AND t.type = 'expense' 
+                    AND t.date >= ? AND t.date <= ?
+                WHERE c.type = 'expense'
+                GROUP BY c.id, c.name, cb.amount
+            ''', (budget_id, start_date, end_date))
+
+            rows = cursor.fetchall()
+            for row in rows:
+                budget_amt = row[2] or 0
+                spent_amt = row[3] or 0
+                category_budgets.append({
+                    'category_id': row[0],
+                    'category_name': row[1],
+                    'budget_amount': budget_amt,
+                    'spent_amount': spent_amt,
+                    'remaining': budget_amt - spent_amt,
+                    'percentage': (spent_amt / budget_amt * 100) if budget_amt > 0 else 0
+                })
+
+        conn.close()
+
+        return {
+            'year': year,
+            'month': month,
+            'budget_amount': budget_amount,
+            'spent_amount': total_spent,
+            'remaining': budget_amount - total_spent,
+            'percentage': (total_spent / budget_amount * 100) if budget_amount > 0 else 0,
+            'category_budgets': category_budgets
+        }
+
+    def check_over_budget(self, year, month):
+        usage = self.get_budget_usage(year, month)
+        alerts = []
+
+        if usage['budget_amount'] > 0:
+            if usage['spent_amount'] > usage['budget_amount']:
+                alerts.append({
+                    'type': 'total_over',
+                    'message': f'本月总支出已超预算！预算: ¥{usage["budget_amount"]:,.2f}, 已支出: ¥{usage["spent_amount"]:,.2f}, 超支: ¥{usage["spent_amount"] - usage["budget_amount"]:,.2f}'
+                })
+            elif usage['percentage'] >= 80:
+                alerts.append({
+                    'type': 'total_warning',
+                    'message': f'本月总支出已达预算的 {usage["percentage"]:.1f}%，请注意控制支出！'
+                })
+
+        for cat in usage['category_budgets']:
+            if cat['budget_amount'] > 0:
+                if cat['spent_amount'] > cat['budget_amount']:
+                    alerts.append({
+                        'type': 'category_over',
+                        'category': cat['category_name'],
+                        'message': f'{cat["category_name"]} 已超预算！预算: ¥{cat["budget_amount"]:,.2f}, 已支出: ¥{cat["spent_amount"]:,.2f}, 超支: ¥{cat["spent_amount"] - cat["budget_amount"]:,.2f}'
+                    })
+                elif cat['percentage'] >= 80:
+                    alerts.append({
+                        'type': 'category_warning',
+                        'category': cat['category_name'],
+                        'message': f'{cat["category_name"]} 支出已达预算的 {cat["percentage"]:.1f}%，请注意控制支出！'
+                    })
+
+        return alerts
