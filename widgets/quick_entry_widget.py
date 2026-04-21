@@ -26,7 +26,7 @@ class QuickEntryWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
         
-        self.setFixedSize(380, 280)
+        self.setFixedSize(380, 340)
         
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
@@ -116,18 +116,21 @@ class QuickEntryWidget(QWidget):
         self.amount_spin.setDecimals(2)
         self.amount_spin.setPrefix('¥ ')
         self.amount_spin.setValue(0)
-        self.amount_spin.setMinimumHeight(50)
+        self.amount_spin.setMinimumHeight(70)
         self.amount_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.amount_spin.setButtonSymbols(QDoubleSpinBox.ButtonSymbols.NoButtons)
         self.amount_spin.setStyleSheet("""
             QDoubleSpinBox {
-                font-size: 24px;
+                font-size: 32px;
                 font-weight: bold;
                 border: 2px solid #e0e0e0;
-                border-radius: 8px;
-                padding: 5px;
+                border-radius: 10px;
+                padding: 10px;
+                background-color: #fafafa;
             }
             QDoubleSpinBox:focus {
                 border: 2px solid #4285f4;
+                background-color: white;
             }
         """)
         amount_layout.addWidget(self.amount_spin)
