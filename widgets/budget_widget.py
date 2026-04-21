@@ -16,6 +16,12 @@ class BudgetWidget(QWidget):
         self.init_ui()
         self.refresh_data()
 
+    def eventFilter(self, obj, event):
+        if event.type() == event.Type.Wheel:
+            if isinstance(obj, (QDoubleSpinBox, QSpinBox, QDateEdit)):
+                return True
+        return super().eventFilter(obj, event)
+
     def init_ui(self):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -41,6 +47,7 @@ class BudgetWidget(QWidget):
         self.year_spin.setRange(2000, 2100)
         self.year_spin.setValue(datetime.now().year)
         self.year_spin.setFixedHeight(36)
+        self.year_spin.installEventFilter(self)
         self.year_spin.valueChanged.connect(self.refresh_data)
 
         self.month_combo = QComboBox()
@@ -106,6 +113,7 @@ class BudgetWidget(QWidget):
         self.budget_spin.setDecimals(2)
         self.budget_spin.setPrefix('¥ ')
         self.budget_spin.setFixedHeight(36)
+        self.budget_spin.installEventFilter(self)
         set_btn = QPushButton('✓ 设置预算')
         set_btn.setFixedHeight(36)
         set_btn.clicked.connect(self.set_monthly_budget)
@@ -145,6 +153,7 @@ class BudgetWidget(QWidget):
         self.cat_budget_spin.setDecimals(2)
         self.cat_budget_spin.setPrefix('¥ ')
         self.cat_budget_spin.setFixedHeight(36)
+        self.cat_budget_spin.installEventFilter(self)
 
         cat_set_btn = QPushButton('✓ 设置')
         cat_set_btn.setFixedHeight(36)

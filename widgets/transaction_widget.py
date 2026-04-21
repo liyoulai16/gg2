@@ -16,6 +16,12 @@ class TransactionWidget(QWidget):
         self.init_ui()
         self.refresh_data()
 
+    def eventFilter(self, obj, event):
+        if event.type() == event.Type.Wheel:
+            if isinstance(obj, (QDoubleSpinBox, QSpinBox, QDateEdit)):
+                return True
+        return super().eventFilter(obj, event)
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(20)
@@ -56,6 +62,7 @@ class TransactionWidget(QWidget):
         self.amount_spin.setDecimals(2)
         self.amount_spin.setPrefix('¥ ')
         self.amount_spin.setValue(0)
+        self.amount_spin.installEventFilter(self)
         form_layout.addWidget(amount_label)
         form_layout.addWidget(self.amount_spin)
 
@@ -63,6 +70,7 @@ class TransactionWidget(QWidget):
         self.date_edit = QDateEdit()
         self.date_edit.setDate(QDate.currentDate())
         self.date_edit.setCalendarPopup(True)
+        self.date_edit.installEventFilter(self)
         form_layout.addWidget(date_label)
         form_layout.addWidget(self.date_edit)
 
@@ -101,6 +109,7 @@ class TransactionWidget(QWidget):
         self.start_date_edit = QDateEdit()
         self.start_date_edit.setDate(QDate.currentDate().addMonths(-1))
         self.start_date_edit.setCalendarPopup(True)
+        self.start_date_edit.installEventFilter(self)
         filter_layout.addWidget(start_date_label)
         filter_layout.addWidget(self.start_date_edit)
 
@@ -108,6 +117,7 @@ class TransactionWidget(QWidget):
         self.end_date_edit = QDateEdit()
         self.end_date_edit.setDate(QDate.currentDate())
         self.end_date_edit.setCalendarPopup(True)
+        self.end_date_edit.installEventFilter(self)
         filter_layout.addWidget(end_date_label)
         filter_layout.addWidget(self.end_date_edit)
 

@@ -14,6 +14,12 @@ class AccountWidget(QWidget):
         self.init_ui()
         self.refresh_data()
 
+    def eventFilter(self, obj, event):
+        if event.type() == event.Type.Wheel:
+            if isinstance(obj, (QDoubleSpinBox, QSpinBox, QDateEdit)):
+                return True
+        return super().eventFilter(obj, event)
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(20)
@@ -34,6 +40,7 @@ class AccountWidget(QWidget):
         self.balance_spin.setDecimals(2)
         self.balance_spin.setPrefix('¥ ')
         self.balance_spin.setValue(0)
+        self.balance_spin.installEventFilter(self)
         add_layout.addWidget(balance_label)
         add_layout.addWidget(self.balance_spin)
 

@@ -21,7 +21,7 @@ class DebtWidget(QWidget):
 
     def eventFilter(self, obj, event):
         if event.type() == event.Type.Wheel:
-            if isinstance(obj, (QDoubleSpinBox, QSpinBox)):
+            if isinstance(obj, (QDoubleSpinBox, QSpinBox, QDateEdit)):
                 return True
         return super().eventFilter(obj, event)
 
@@ -117,6 +117,7 @@ class DebtWidget(QWidget):
         self.start_date_edit.setDate(QDate.currentDate())
         self.start_date_edit.setDisplayFormat('yyyy-MM-dd')
         self.start_date_edit.dateChanged.connect(self.on_start_date_changed)
+        self.start_date_edit.installEventFilter(self)
         form_layout.addRow(start_date_label, self.start_date_edit)
 
         due_date_label = QLabel('到期日期:')
@@ -126,6 +127,7 @@ class DebtWidget(QWidget):
         self.due_date_edit.setDisplayFormat('yyyy-MM-dd')
         self.due_date_edit.setSpecialValueText('无到期日')
         self.due_date_edit.setMinimumDate(self.start_date_edit.date())
+        self.due_date_edit.installEventFilter(self)
         form_layout.addRow(due_date_label, self.due_date_edit)
 
         desc_label = QLabel('备注:')
@@ -180,6 +182,8 @@ class DebtWidget(QWidget):
         ])
         self.debt_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.debt_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.debt_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Fixed)
+        self.debt_table.horizontalHeader().resizeSection(7, 180)
         self.debt_table.verticalHeader().setDefaultSectionSize(55)
         self.debt_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.debt_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -239,6 +243,7 @@ class DebtWidget(QWidget):
         self.payment_due_edit.setCalendarPopup(True)
         self.payment_due_edit.setDate(QDate.currentDate().addDays(30))
         self.payment_due_edit.setDisplayFormat('yyyy-MM-dd')
+        self.payment_due_edit.installEventFilter(self)
         add_payment_layout.addRow(payment_due_label, self.payment_due_edit)
 
         payment_desc_label = QLabel('备注:')
@@ -263,6 +268,8 @@ class DebtWidget(QWidget):
         ])
         self.payment_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.payment_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.payment_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        self.payment_table.horizontalHeader().resizeSection(5, 200)
         self.payment_table.verticalHeader().setDefaultSectionSize(55)
         self.payment_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.payment_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -429,6 +436,9 @@ class DebtWidget(QWidget):
                 QPushButton:hover {
                     background-color: #3367d6;
                 }
+                QPushButton:pressed {
+                    background-color: #2851a3;
+                }
             """)
             edit_btn.clicked.connect(lambda checked, d=debt: self.edit_debt(d))
             btn_layout.addWidget(edit_btn)
@@ -446,6 +456,9 @@ class DebtWidget(QWidget):
                 }
                 QPushButton:hover {
                     background-color: #d33427;
+                }
+                QPushButton:pressed {
+                    background-color: #c12e22;
                 }
             """)
             delete_btn.clicked.connect(lambda checked, d_id=debt['id']: self.delete_debt(d_id))
@@ -611,6 +624,9 @@ class DebtWidget(QWidget):
                     QPushButton:hover {
                         background-color: #2d8e47;
                     }
+                    QPushButton:pressed {
+                        background-color: #257539;
+                    }
                 """)
                 pay_btn.clicked.connect(lambda checked, p_id=payment['id']: self.mark_payment_paid(p_id))
                 btn_layout.addWidget(pay_btn)
@@ -628,6 +644,9 @@ class DebtWidget(QWidget):
                 }
                 QPushButton:hover {
                     background-color: #d33427;
+                }
+                QPushButton:pressed {
+                    background-color: #c12e22;
                 }
             """)
             delete_btn.clicked.connect(lambda checked, p_id=payment['id']: self.delete_payment(p_id))
