@@ -95,7 +95,7 @@ class QuickEntrySettingsDialog(QDialog):
 
         list_layout.addWidget(self.preset_table)
 
-        layout.addWidget(list_layout)
+        layout.addWidget(list_group)
 
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
