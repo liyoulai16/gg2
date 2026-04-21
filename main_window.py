@@ -9,28 +9,39 @@ from database import Database
 from widgets import (
     TransactionWidget, AccountWidget, CategoryWidget, 
     StatisticsWidget, BudgetWidget, DebtWidget, RecurringWidget,
-    ExportDialog, ImportDialog, BackupRestoreDialog
+    ExportDialog, ImportDialog, BackupRestoreDialog, SettingsDialog
 )
 from widgets.quick_entry_widget import QuickEntryWidget
 from global_hotkey import HotkeyManager
+from settings import SettingsManager, get_settings
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = Database()
+        self.settings = get_settings(self.db)
         self.quick_entry_window = None
         self.hotkey_manager = None
+        self._widget_map = {}
+        self._tab_keys = []
         self.init_ui()
         self.init_quick_entry()
         self.init_hotkey()
+        self.connect_settings_signals()
+
+    def connect_settings_signals(self):
+        self.settings.theme_changed.connect(self.on_theme_changed)
+        self.settings.currency_changed.connect(self.on_currency_changed)
+        self.settings.format_changed.connect(self.on_format_changed)
+        self.settings.layout_changed.connect(self.on_layout_changed)
 
     def init_ui(self):
         self.setWindowTitle('记账应用')
         self.setMinimumSize(1000, 700)
         self.resize(1200, 800)
 
-        self.setup_style()
+        self.setup_style_from_settings()
         self.create_menu_bar()
 
         central_widget = QWidget()
@@ -40,8 +51,8 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        header = self.create_header()
-        main_layout.addWidget(header)
+        self.header = self.create_header()
+        main_layout.addWidget(self.header)
 
         self.tab_widget = QTabWidget()
         self.tab_widget.setDocumentMode(True)
@@ -55,13 +66,17 @@ class MainWindow(QMainWindow):
         self.debt_widget = DebtWidget(self.db)
         self.recurring_widget = RecurringWidget(self.db)
 
-        self.tab_widget.addTab(self.transaction_widget, '💰 收支记录')
-        self.tab_widget.addTab(self.account_widget, '💳 账户管理')
-        self.tab_widget.addTab(self.category_widget, '📁 分类管理')
-        self.tab_widget.addTab(self.statistics_widget, '📊 统计分析')
-        self.tab_widget.addTab(self.budget_widget, '💰 预算管理')
-        self.tab_widget.addTab(self.debt_widget, '💸 债务管理')
-        self.tab_widget.addTab(self.recurring_widget, '🔄 周期性账单')
+        self._widget_map = {
+            'transaction': self.transaction_widget,
+            'account': self.account_widget,
+            'category': self.category_widget,
+            'statistics': self.statistics_widget,
+            'budget': self.budget_widget,
+            'debt': self.debt_widget,
+            'recurring': self.recurring_widget,
+        }
+
+        self.setup_tabs_from_settings()
 
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
@@ -70,184 +85,111 @@ class MainWindow(QMainWindow):
         self.status_bar = self.statusBar()
         self.update_status_bar()
 
-    def setup_style(self):
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(250, 250, 250))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(50, 50, 50))
-        palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(50, 50, 50))
-        palette.setColor(QPalette.ColorRole.Text, QColor(50, 50, 50))
-        palette.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor(50, 50, 50))
-        palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor(66, 133, 244))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-        self.setPalette(palette)
+    def setup_tabs_from_settings(self):
+        while self.tab_widget.count() > 0:
+            self.tab_widget.removeTab(0)
+        
+        tab_order = self.settings.get_tab_order()
+        highlight_tabs = self.settings.get_highlight_tabs()
+        highlight_color = self.settings.get_highlight_color()
+        
+        self._tab_keys = []
+        for tab_key in tab_order:
+            if tab_key in self._widget_map:
+                widget = self._widget_map[tab_key]
+                label = self.settings.get_tab_label(tab_key)
+                index = self.tab_widget.addTab(widget, label)
+                self._tab_keys.append(tab_key)
+                
+                if tab_key in highlight_tabs:
+                    self.tab_widget.tabBar().setTabTextColor(index, QColor(highlight_color))
 
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #fafafa;
-            }
-            QTabWidget::pane {
-                border: 1px solid #e0e0e0;
-                background-color: white;
-                border-radius: 4px;
-            }
-            QTabBar::tab {
-                background-color: #f5f5f5;
-                border: 1px solid #e0e0e0;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                padding: 12px 24px;
-                margin-right: 2px;
-                font-size: 14px;
-            }
-            QTabBar::tab:selected {
-                background-color: white;
-                border-bottom: 2px solid #4285f4;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #e8e8e8;
-            }
-            QPushButton {
-                background-color: #4285f4;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #3367d6;
-            }
-            QPushButton:pressed {
-                background-color: #2851a3;
-            }
-            QPushButton:disabled {
-                background-color: #bdbdbd;
-            }
-            QPushButton[class="danger"] {
-                background-color: #ea4335;
-            }
-            QPushButton[class="danger"]:hover {
-                background-color: #d33427;
-            }
-            QPushButton[class="success"] {
-                background-color: #34a853;
-            }
-            QPushButton[class="success"]:hover {
-                background-color: #2d8e47;
-            }
-            QLineEdit, QTextEdit, QComboBox, QDateEdit {
-                padding: 10px;
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                font-size: 13px;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateEdit:focus {
-                border: 2px solid #4285f4;
-            }
-            QSpinBox, QDoubleSpinBox {
-                padding: 10px;
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                font-size: 13px;
-                background-color: white;
-            }
-            QSpinBox:focus, QDoubleSpinBox:focus {
-                border: 2px solid #4285f4;
-            }
-            QSpinBox::up-button, QDoubleSpinBox::up-button {
-                width: 0px;
-                border: none;
-            }
-            QSpinBox::down-button, QDoubleSpinBox::down-button {
-                width: 0px;
-                border: none;
-            }
-            QTableWidget {
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                gridline-color: #f0f0f0;
-                background-color: white;
-                selection-background-color: #e8f0fe;
-                selection-color: #202124;
-            }
-            QTableWidget::item {
-                padding: 8px;
-            }
-            QHeaderView::section {
-                background-color: #f5f5f5;
-                padding: 12px;
-                border: none;
-                border-bottom: 1px solid #e0e0e0;
-                font-weight: bold;
-                color: #5f6368;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                margin-top: 16px;
-                padding-top: 16px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 8px;
-                color: #5f6368;
-            }
-            QRadioButton {
-                spacing: 8px;
-            }
-            QRadioButton::indicator {
-                width: 18px;
-                height: 18px;
-            }
-            QStatusBar {
-                background-color: #f5f5f5;
-                border-top: 1px solid #e0e0e0;
-                padding: 8px;
-            }
-        """)
+    def setup_style_from_settings(self):
+        app = QApplication.instance()
+        self.settings.apply_palette(app)
+        
+        base_stylesheet = self.settings.get_stylesheet()
+        self.setStyleSheet(base_stylesheet)
+
+    def on_theme_changed(self):
+        self.setup_style_from_settings()
+        self.update_header_style()
+
+    def on_currency_changed(self):
+        self.update_status_bar()
+        self.update_header_balance()
+        self.refresh_all_widgets()
+
+    def on_format_changed(self):
+        self.update_status_bar()
+        self.update_header_balance()
+        self.refresh_all_widgets()
+
+    def on_layout_changed(self):
+        self.setup_tabs_from_settings()
+
+    def update_header_style(self):
+        colors = self.settings.get_theme_colors()
+        header_color = colors.get('header_bg', QColor(66, 133, 244)).name()
+        
+        if self.settings.get_theme() == 'dark':
+            text_color = '#202124'
+        else:
+            text_color = 'white'
+        
+        self.header.setStyleSheet(f"background-color: {header_color};")
+        
+        for i in range(self.header.layout().count()):
+            item = self.header.layout().itemAt(i)
+            if item.widget():
+                widget = item.widget()
+                if isinstance(widget, QLabel) and widget not in [self.header.layout().itemAt(self.header.layout().count() - 1).widget() if self.header.layout().count() > 0 else None]:
+                    if '总资产' in widget.text():
+                        widget.setStyleSheet(f"color: {text_color}; font-size: 16px;")
+                    else:
+                        widget.setStyleSheet(f"color: {text_color}; font-size: 22px; font-weight: bold;")
 
     def create_header(self):
         header = QWidget()
         header.setFixedHeight(80)
-        header.setStyleSheet("background-color: #4285f4;")
+        colors = self.settings.get_theme_colors()
+        header_color = colors.get('header_bg', QColor(66, 133, 244)).name()
+        
+        if self.settings.get_theme() == 'dark':
+            text_color = '#202124'
+        else:
+            text_color = 'white'
+        
+        header.setStyleSheet(f"background-color: {header_color};")
 
         layout = QHBoxLayout(header)
         layout.setContentsMargins(24, 0, 24, 0)
 
         title_label = QLabel('📊 个人记账应用')
-        title_label.setStyleSheet("color: white; font-size: 22px; font-weight: bold;")
+        title_label.setStyleSheet(f"color: {text_color}; font-size: 22px; font-weight: bold;")
 
-        total_balance = self.db.get_total_balance()
-        balance_label = QLabel(f'总资产: ¥ {total_balance:,.2f}')
-        balance_label.setStyleSheet("color: white; font-size: 16px;")
+        self.balance_label = QLabel()
+        self.update_header_balance()
+        self.balance_label.setStyleSheet(f"color: {text_color}; font-size: 16px;")
 
         quick_entry_btn = QPushButton('⚡ 快速记账 (Alt+Ctrl+J)')
         quick_entry_btn.setMinimumHeight(40)
-        quick_entry_btn.setStyleSheet("""
-            QPushButton {
+        quick_entry_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: rgba(255, 255, 255, 0.2);
-                color: white;
+                color: {text_color};
                 border: 2px solid rgba(255, 255, 255, 0.5);
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: bold;
                 padding: 8px 16px;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: rgba(255, 255, 255, 0.3);
-            }
-            QPushButton:pressed {
+            }}
+            QPushButton:pressed {{
                 background-color: rgba(255, 255, 255, 0.4);
-            }
+            }}
         """)
         quick_entry_btn.clicked.connect(self.show_quick_entry)
 
@@ -255,9 +197,15 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         layout.addWidget(quick_entry_btn)
         layout.addSpacing(20)
-        layout.addWidget(balance_label)
+        layout.addWidget(self.balance_label)
 
         return header
+
+    def update_header_balance(self):
+        total_balance = self.db.get_total_balance()
+        formatted_balance = self.settings.format_amount(total_balance)
+        if self.balance_label:
+            self.balance_label.setText(f'总资产: {formatted_balance}')
 
     def init_quick_entry(self):
         self.quick_entry_window = QuickEntryWidget(self.db)
@@ -288,60 +236,96 @@ class MainWindow(QMainWindow):
             self.quick_entry_window.raise_()
             self.quick_entry_window.activateWindow()
 
+    def show_settings_dialog(self):
+        dialog = SettingsDialog(self.settings, self)
+        dialog.settings_applied.connect(self.on_settings_applied)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.on_settings_applied()
+
+    def on_settings_applied(self):
+        self.setup_style_from_settings()
+        self.update_header_style()
+        self.setup_tabs_from_settings()
+        self.update_status_bar()
+        self.update_header_balance()
+        self.refresh_all_widgets()
+
     def on_tab_changed(self, index):
-        if index == 0:
-            self.transaction_widget.refresh_data()
-        elif index == 1:
-            self.account_widget.refresh_data()
-        elif index == 2:
-            self.category_widget.refresh_data()
-        elif index == 3:
-            self.statistics_widget.refresh_data()
-        elif index == 4:
-            self.budget_widget.refresh_data()
-        elif index == 5:
-            self.debt_widget.refresh_data()
-        elif index == 6:
-            self.recurring_widget.refresh_data()
+        if 0 <= index < len(self._tab_keys):
+            tab_key = self._tab_keys[index]
+            if tab_key == 'transaction':
+                self.transaction_widget.refresh_data()
+            elif tab_key == 'account':
+                self.account_widget.refresh_data()
+            elif tab_key == 'category':
+                self.category_widget.refresh_data()
+            elif tab_key == 'statistics':
+                self.statistics_widget.refresh_data()
+            elif tab_key == 'budget':
+                self.budget_widget.refresh_data()
+            elif tab_key == 'debt':
+                self.debt_widget.refresh_data()
+            elif tab_key == 'recurring':
+                self.recurring_widget.refresh_data()
 
     def update_status_bar(self):
         total_balance = self.db.get_total_balance()
         accounts = self.db.get_all_accounts()
-        self.status_bar.showMessage(f'账户数: {len(accounts)} | 总资产: ¥ {total_balance:,.2f}')
+        formatted_balance = self.settings.format_amount(total_balance)
+        self.status_bar.showMessage(f'账户数: {len(accounts)} | 总资产: {formatted_balance}')
 
     def create_menu_bar(self):
         menubar = self.menuBar()
-        menubar.setStyleSheet("""
-            QMenuBar {
-                background-color: #f5f5f5;
+        
+        theme = self.settings.get_theme()
+        if theme == 'dark':
+            menubar_bg = '#3c4043'
+            menubar_border = '#5f6368'
+            menubar_selected = '#5f6368'
+            menu_bg = '#28292c'
+            menu_border = '#5f6368'
+            menu_selected = '#5f6368'
+            separator_color = '#5f6368'
+        else:
+            menubar_bg = '#f5f5f5'
+            menubar_border = '#e0e0e0'
+            menubar_selected = '#e8e8e8'
+            menu_bg = 'white'
+            menu_border = '#e0e0e0'
+            menu_selected = '#e8f0fe'
+            separator_color = '#e0e0e0'
+        
+        menubar.setStyleSheet(f"""
+            QMenuBar {{
+                background-color: {menubar_bg};
                 padding: 2px;
-                border-bottom: 1px solid #e0e0e0;
-            }
-            QMenuBar::item {
+                border-bottom: 1px solid {menubar_border};
+            }}
+            QMenuBar::item {{
                 padding: 5px 12px;
                 border-radius: 4px;
-            }
-            QMenuBar::item:selected {
-                background-color: #e8e8e8;
-            }
-            QMenu {
-                background-color: white;
-                border: 1px solid #e0e0e0;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {menubar_selected};
+            }}
+            QMenu {{
+                background-color: {menu_bg};
+                border: 1px solid {menu_border};
                 border-radius: 4px;
                 padding: 5px;
-            }
-            QMenu::item {
+            }}
+            QMenu::item {{
                 padding: 8px 25px;
                 border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: #e8f0fe;
-            }
-            QMenu::separator {
+            }}
+            QMenu::item:selected {{
+                background-color: {menu_selected};
+            }}
+            QMenu::separator {{
                 height: 1px;
-                background-color: #e0e0e0;
+                background-color: {separator_color};
                 margin: 5px 10px;
-            }
+            }}
         """)
 
         file_menu = menubar.addMenu('文件(&F)')
@@ -368,6 +352,13 @@ class MainWindow(QMainWindow):
         exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
+        edit_menu = menubar.addMenu('编辑(&E)')
+        
+        settings_action = QAction('⚙️ 设置...', self)
+        settings_action.setShortcut('Ctrl+,')
+        settings_action.triggered.connect(self.show_settings_dialog)
+        edit_menu.addAction(settings_action)
 
         help_menu = menubar.addMenu('帮助(&H)')
         
@@ -403,7 +394,10 @@ class MainWindow(QMainWindow):
             '• 债务管理\n'
             '• 周期性账单\n'
             '• 数据导入导出\n'
-            '• 数据库备份恢复'
+            '• 数据库备份恢复\n'
+            '• 个性化主题设置\n'
+            '• 货币单位切换\n'
+            '• 界面布局自定义'
         )
 
     def refresh_all_widgets(self):
