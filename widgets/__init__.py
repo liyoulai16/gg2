@@ -7,5 +7,11 @@ from .debt_widget import DebtWidget
 from .quick_entry_widget import QuickEntryWidget
 from .quick_entry_settings import QuickEntrySettingsDialog
 from .recurring_widget import RecurringWidget
+from .import_export_dialogs import ExportDialog, ImportDialog, BackupRestoreDialog
 
-__all__ = ['TransactionWidget', 'AccountWidget', 'CategoryWidget', 'StatisticsWidget', 'BudgetWidget', 'DebtWidget', 'QuickEntryWidget', 'QuickEntrySettingsDialog', 'RecurringWidget']
+__all__ = [
+    'TransactionWidget', 'AccountWidget', 'CategoryWidget', 
+    'StatisticsWidget', 'BudgetWidget', 'DebtWidget', 
+    'QuickEntryWidget', 'QuickEntrySettingsDialog', 'RecurringWidget',
+    'ExportDialog', 'ImportDialog', 'BackupRestoreDialog'
+]
