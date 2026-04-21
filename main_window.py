@@ -1,12 +1,16 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTabWidget, QLabel, QMessageBox, QApplication,
-    QPushButton
+    QPushButton, QMenuBar, QMenu, QDialog
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QColor, QPalette
+from PyQt6.QtGui import QFont, QColor, QPalette, QAction
 from database import Database
-from widgets import TransactionWidget, AccountWidget, CategoryWidget, StatisticsWidget, BudgetWidget, DebtWidget, RecurringWidget
+from widgets import (
+    TransactionWidget, AccountWidget, CategoryWidget, 
+    StatisticsWidget, BudgetWidget, DebtWidget, RecurringWidget,
+    ExportDialog, ImportDialog, BackupRestoreDialog
+)
 from widgets.quick_entry_widget import QuickEntryWidget
 from global_hotkey import HotkeyManager
 
@@ -27,6 +31,7 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
 
         self.setup_style()
+        self.create_menu_bar()
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -303,6 +308,113 @@ class MainWindow(QMainWindow):
         total_balance = self.db.get_total_balance()
         accounts = self.db.get_all_accounts()
         self.status_bar.showMessage(f'账户数: {len(accounts)} | 总资产: ¥ {total_balance:,.2f}')
+
+    def create_menu_bar(self):
+        menubar = self.menuBar()
+        menubar.setStyleSheet("""
+            QMenuBar {
+                background-color: #f5f5f5;
+                padding: 2px;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            QMenuBar::item {
+                padding: 5px 12px;
+                border-radius: 4px;
+            }
+            QMenuBar::item:selected {
+                background-color: #e8e8e8;
+            }
+            QMenu {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QMenu::item {
+                padding: 8px 25px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #e8f0fe;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #e0e0e0;
+                margin: 5px 10px;
+            }
+        """)
+
+        file_menu = menubar.addMenu('文件(&F)')
+
+        export_action = QAction('📤 导出数据...', self)
+        export_action.setShortcut('Ctrl+E')
+        export_action.triggered.connect(self.show_export_dialog)
+        file_menu.addAction(export_action)
+
+        import_action = QAction('📥 导入数据...', self)
+        import_action.setShortcut('Ctrl+I')
+        import_action.triggered.connect(self.show_import_dialog)
+        file_menu.addAction(import_action)
+
+        file_menu.addSeparator()
+
+        backup_action = QAction('💾 数据备份与恢复...', self)
+        backup_action.triggered.connect(self.show_backup_dialog)
+        file_menu.addAction(backup_action)
+
+        file_menu.addSeparator()
+
+        exit_action = QAction('退出', self)
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        help_menu = menubar.addMenu('帮助(&H)')
+        
+        about_action = QAction('关于', self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+
+    def show_export_dialog(self):
+        dialog = ExportDialog(self.db, self)
+        dialog.exec()
+        self.refresh_all_widgets()
+
+    def show_import_dialog(self):
+        dialog = ImportDialog(self.db, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.refresh_all_widgets()
+
+    def show_backup_dialog(self):
+        dialog = BackupRestoreDialog(self.db, self)
+        dialog.exec()
+
+    def show_about(self):
+        QMessageBox.about(
+            self, '关于记账应用',
+            '📊 个人记账应用\n\n'
+            '版本: 1.0.0\n\n'
+            '功能特性:\n'
+            '• 收支记录管理\n'
+            '• 多账户管理\n'
+            '• 分类管理\n'
+            '• 统计分析\n'
+            '• 预算管理\n'
+            '• 债务管理\n'
+            '• 周期性账单\n'
+            '• 数据导入导出\n'
+            '• 数据库备份恢复'
+        )
+
+    def refresh_all_widgets(self):
+        self.transaction_widget.refresh_data()
+        self.account_widget.refresh_data()
+        self.category_widget.refresh_data()
+        self.statistics_widget.refresh_data()
+        self.budget_widget.refresh_data()
+        self.debt_widget.refresh_data()
+        self.recurring_widget.refresh_data()
+        self.update_status_bar()
 
     def closeEvent(self, event):
         reply = QMessageBox.question(
