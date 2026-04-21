@@ -3,7 +3,8 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QTableWidget,
     QTableWidgetItem, QComboBox, QRadioButton,
     QButtonGroup, QDateEdit, QMessageBox, QDoubleSpinBox,
-    QSplitter, QFrame, QHeaderView, QAbstractItemView
+    QSplitter, QFrame, QHeaderView, QAbstractItemView,
+    QApplication
 )
 from PyQt6.QtCore import Qt, QDate
 from datetime import datetime
@@ -15,6 +16,12 @@ class TransactionWidget(QWidget):
         self.db = db
         self.init_ui()
         self.refresh_data()
+    
+    def find_main_window(self):
+        for widget in QApplication.instance().topLevelWidgets():
+            if widget.__class__.__name__ == 'MainWindow':
+                return widget
+        return None
 
     def eventFilter(self, obj, event):
         if event.type() == event.Type.Wheel:
@@ -216,7 +223,9 @@ class TransactionWidget(QWidget):
             self.amount_spin.setValue(0)
             self.desc_edit.clear()
             self.refresh_data()
-            self.parent().parent().update_status_bar()
+            main_window = self.find_main_window()
+            if main_window:
+                main_window.update_status_bar()
         else:
             QMessageBox.critical(self, '错误', '添加记录失败！')
 
@@ -314,6 +323,8 @@ class TransactionWidget(QWidget):
             if self.db.delete_transaction(transaction_id):
                 QMessageBox.information(self, '成功', '记录已删除！')
                 self.refresh_data()
-                self.parent().parent().update_status_bar()
+                main_window = self.find_main_window()
+                if main_window:
+                    main_window.update_status_bar()
             else:
                 QMessageBox.critical(self, '错误', '删除记录失败！')

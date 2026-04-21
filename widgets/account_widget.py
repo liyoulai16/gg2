@@ -2,7 +2,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QTableWidget,
     QTableWidgetItem, QMessageBox, QDoubleSpinBox,
-    QInputDialog, QHeaderView, QAbstractItemView
+    QInputDialog, QHeaderView, QAbstractItemView,
+    QApplication
 )
 from PyQt6.QtCore import Qt
 
@@ -13,6 +14,12 @@ class AccountWidget(QWidget):
         self.db = db
         self.init_ui()
         self.refresh_data()
+    
+    def find_main_window(self):
+        for widget in QApplication.instance().topLevelWidgets():
+            if widget.__class__.__name__ == 'MainWindow':
+                return widget
+        return None
 
     def eventFilter(self, obj, event):
         if event.type() == event.Type.Wheel:
@@ -169,7 +176,9 @@ class AccountWidget(QWidget):
             self.name_edit.clear()
             self.balance_spin.setValue(0)
             self.refresh_data()
-            self.parent().parent().update_status_bar()
+            main_window = self.find_main_window()
+            if main_window:
+                main_window.update_status_bar()
         else:
             QMessageBox.warning(self, '警告', f'账户名称"{name}"已存在！')
 
@@ -184,7 +193,9 @@ class AccountWidget(QWidget):
             if self.db.update_account(account['id'], name=new_name.strip()):
                 QMessageBox.information(self, '成功', '账户信息已更新！')
                 self.refresh_data()
-                self.parent().parent().update_status_bar()
+                main_window = self.find_main_window()
+                if main_window:
+                    main_window.update_status_bar()
             else:
                 QMessageBox.warning(self, '警告', '账户名称已存在或更新失败！')
 
@@ -199,6 +210,8 @@ class AccountWidget(QWidget):
             if self.db.delete_account(account_id):
                 QMessageBox.information(self, '成功', '账户已删除！')
                 self.refresh_data()
-                self.parent().parent().update_status_bar()
+                main_window = self.find_main_window()
+                if main_window:
+                    main_window.update_status_bar()
             else:
                 QMessageBox.warning(self, '警告', '删除失败！该账户可能有交易记录。')
