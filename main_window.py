@@ -1,18 +1,25 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTabWidget, QLabel, QMessageBox, QApplication
+    QTabWidget, QLabel, QMessageBox, QApplication,
+    QPushButton
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette
 from database import Database
 from widgets import TransactionWidget, AccountWidget, CategoryWidget, StatisticsWidget, BudgetWidget, DebtWidget
+from widgets.quick_entry_widget import QuickEntryWidget
+from global_hotkey import HotkeyManager
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = Database()
+        self.quick_entry_window = None
+        self.hotkey_manager = None
         self.init_ui()
+        self.init_quick_entry()
+        self.init_hotkey()
 
     def init_ui(self):
         self.setWindowTitle('记账应用')
@@ -216,11 +223,63 @@ class MainWindow(QMainWindow):
         balance_label = QLabel(f'总资产: ¥ {total_balance:,.2f}')
         balance_label.setStyleSheet("color: white; font-size: 16px;")
 
+        quick_entry_btn = QPushButton('⚡ 快速记账 (Alt+Ctrl+J)')
+        quick_entry_btn.setMinimumHeight(40)
+        quick_entry_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.2);
+                color: white;
+                border: 2px solid rgba(255, 255, 255, 0.5);
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.3);
+            }
+            QPushButton:pressed {
+                background-color: rgba(255, 255, 255, 0.4);
+            }
+        """)
+        quick_entry_btn.clicked.connect(self.show_quick_entry)
+
         layout.addWidget(title_label)
         layout.addStretch()
+        layout.addWidget(quick_entry_btn)
+        layout.addSpacing(20)
         layout.addWidget(balance_label)
 
         return header
+
+    def init_quick_entry(self):
+        self.quick_entry_window = QuickEntryWidget(self.db)
+
+    def init_hotkey(self):
+        self.hotkey_manager = HotkeyManager(self)
+        if self.hotkey_manager.is_available():
+            if self.hotkey_manager.setup_default_hotkey():
+                self.hotkey_manager.connect_activated(self.show_quick_entry)
+            else:
+                print("警告: 全局快捷键注册失败，可能已被其他程序占用")
+        else:
+            print("警告: 当前系统不支持全局快捷键")
+
+    def show_quick_entry(self):
+        if self.quick_entry_window:
+            self.quick_entry_window.load_presets()
+            
+            screen = QApplication.primaryScreen()
+            screen_geometry = screen.availableGeometry()
+            
+            window_geometry = self.quick_entry_window.frameGeometry()
+            x = (screen_geometry.width() - window_geometry.width()) // 2
+            y = (screen_geometry.height() - window_geometry.height()) // 2
+            
+            self.quick_entry_window.move(x, y)
+            self.quick_entry_window.show()
+            self.quick_entry_window.raise_()
+            self.quick_entry_window.activateWindow()
 
     def on_tab_changed(self, index):
         if index == 0:
@@ -249,6 +308,10 @@ class MainWindow(QMainWindow):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
+            if self.hotkey_manager:
+                self.hotkey_manager.cleanup()
+            if self.quick_entry_window:
+                self.quick_entry_window.close()
             event.accept()
         else:
             event.ignore()
