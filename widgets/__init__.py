@@ -3,5 +3,6 @@ from .account_widget import AccountWidget
 from .category_widget import CategoryWidget
 from .statistics_widget import StatisticsWidget
 from .budget_widget import BudgetWidget
+from .debt_widget import DebtWidget
 
-__all__ = ['TransactionWidget', 'AccountWidget', 'CategoryWidget', 'StatisticsWidget', 'BudgetWidget']
+__all__ = ['TransactionWidget', 'AccountWidget', 'CategoryWidget', 'StatisticsWidget', 'BudgetWidget', 'DebtWidget']

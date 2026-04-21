@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor, QPalette
 from database import Database
-from widgets import TransactionWidget, AccountWidget, CategoryWidget, StatisticsWidget, BudgetWidget
+from widgets import TransactionWidget, AccountWidget, CategoryWidget, StatisticsWidget, BudgetWidget, DebtWidget
 
 
 class MainWindow(QMainWindow):
@@ -40,12 +40,14 @@ class MainWindow(QMainWindow):
         self.category_widget = CategoryWidget(self.db)
         self.statistics_widget = StatisticsWidget(self.db)
         self.budget_widget = BudgetWidget(self.db)
+        self.debt_widget = DebtWidget(self.db)
 
         self.tab_widget.addTab(self.transaction_widget, '💰 收支记录')
         self.tab_widget.addTab(self.account_widget, '💳 账户管理')
         self.tab_widget.addTab(self.category_widget, '📁 分类管理')
         self.tab_widget.addTab(self.statistics_widget, '📊 统计分析')
         self.tab_widget.addTab(self.budget_widget, '💰 预算管理')
+        self.tab_widget.addTab(self.debt_widget, '💸 债务管理')
 
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
@@ -231,6 +233,8 @@ class MainWindow(QMainWindow):
             self.statistics_widget.refresh_data()
         elif index == 4:
             self.budget_widget.refresh_data()
+        elif index == 5:
+            self.debt_widget.refresh_data()
 
     def update_status_bar(self):
         total_balance = self.db.get_total_balance()
