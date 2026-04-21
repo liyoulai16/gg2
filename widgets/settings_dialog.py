@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QGroupBox, QRadioButton, QButtonGroup, QComboBox, QSpinBox,
     QCheckBox, QColorDialog, QListWidget, QListWidgetItem,
     QTabWidget, QWidget, QFrame, QMessageBox, QDoubleSpinBox,
-    QSplitter
+    QSplitter, QScrollArea
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
@@ -256,6 +256,7 @@ class SettingsDialog(QDialog):
 
         self.custom_colors_group = QGroupBox('自定义主题颜色')
         custom_colors_layout = QVBoxLayout(self.custom_colors_group)
+        custom_colors_layout.setSpacing(15)
 
         color_controls = [
             ('header_bg', '标题栏颜色:', '#4285f4'),
@@ -268,13 +269,18 @@ class SettingsDialog(QDialog):
         self.color_labels = {}
 
         for key, label_text, default_color in color_controls:
-            row_layout = QHBoxLayout()
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0, 8, 0, 8)
+            row_layout.setSpacing(15)
+
             label = QLabel(label_text)
             label.setMinimumWidth(100)
+            label.setStyleSheet("font-size: 14px;")
             row_layout.addWidget(label)
 
             color_label = QLabel()
-            color_label.setFixedSize(100, 30)
+            color_label.setFixedSize(120, 40)
             color_label.setStyleSheet(f"""
                 QLabel {{
                     background-color: {default_color};
@@ -285,14 +291,21 @@ class SettingsDialog(QDialog):
             self.color_labels[key] = color_label
             row_layout.addWidget(color_label)
 
-            color_btn = QPushButton('选择颜色...')
+            color_btn = QPushButton('选择颜色')
             color_btn.setMinimumWidth(100)
+            color_btn.setMinimumHeight(38)
+            color_btn.setStyleSheet("""
+                QPushButton {
+                    padding: 10px 20px;
+                    font-size: 13px;
+                }
+            """)
             color_btn.clicked.connect(lambda checked, k=key: self.choose_color(k))
             self.color_buttons[key] = color_btn
             row_layout.addWidget(color_btn)
 
             row_layout.addStretch()
-            custom_colors_layout.addLayout(row_layout)
+            custom_colors_layout.addWidget(row_widget)
 
         layout.addWidget(self.custom_colors_group)
         layout.addStretch()
@@ -355,23 +368,75 @@ class SettingsDialog(QDialog):
         layout.addWidget(decimal_group)
 
         exchange_group = QGroupBox('汇率设置 (相对于人民币)')
-        exchange_layout = QVBoxLayout(exchange_group)
+        exchange_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #e0e0e0;
+                border-radius: 4px;
+                margin-top: 16px;
+                padding-top: 16px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+        """)
+        exchange_main_layout = QVBoxLayout(exchange_group)
 
         exchange_info = QLabel('以下汇率为示例汇率，实际汇率请根据当前市场汇率手动设置。\n汇率用于不同货币单位之间的金额转换显示。')
         exchange_info.setStyleSheet("color: #5f6368;")
         exchange_info.setWordWrap(True)
-        exchange_layout.addWidget(exchange_info)
+        exchange_main_layout.addWidget(exchange_info)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setMinimumHeight(200)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background-color: #f5f5f5;
+                width: 16px;
+                border-radius: 8px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #bdbdbd;
+                border-radius: 8px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #9e9e9e;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(12)
 
         self.exchange_controls = {}
         for code, currency in CURRENCIES.items():
             if code == 'CNY':
                 continue
-            row_layout = QHBoxLayout()
+            
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(10, 10, 10, 10)
+            row_layout.setSpacing(15)
+
             code_label = QLabel(f"{currency.symbol} {currency.name} ({code}):")
             code_label.setMinimumWidth(150)
+            code_label.setStyleSheet("font-size: 14px;")
             row_layout.addWidget(code_label)
 
-            rate_label = QLabel('1 CNY = ')
+            rate_label = QLabel('1 人民币 = ')
+            rate_label.setStyleSheet("font-size: 14px;")
             row_layout.addWidget(rate_label)
 
             rate_spin = QDoubleSpinBox()
@@ -379,15 +444,22 @@ class SettingsDialog(QDialog):
             rate_spin.setDecimals(4)
             rate_spin.setSingleStep(0.01)
             rate_spin.setValue(currency.rate)
-            rate_spin.setMinimumWidth(100)
+            rate_spin.setMinimumWidth(120)
+            rate_spin.setMinimumHeight(35)
+            rate_spin.setStyleSheet("font-size: 14px;")
             self.exchange_controls[code] = rate_spin
             row_layout.addWidget(rate_spin)
 
             code_label2 = QLabel(f' {code}')
+            code_label2.setStyleSheet("font-size: 14px; font-weight: bold;")
             row_layout.addWidget(code_label2)
 
             row_layout.addStretch()
-            exchange_layout.addLayout(row_layout)
+            scroll_layout.addWidget(row_widget)
+
+        scroll_layout.addStretch()
+        scroll_area.setWidget(scroll_content)
+        exchange_main_layout.addWidget(scroll_area)
 
         layout.addWidget(exchange_group)
         layout.addStretch()
@@ -469,6 +541,21 @@ class SettingsDialog(QDialog):
         layout.setSpacing(20)
 
         tab_order_group = QGroupBox('标签页顺序')
+        tab_order_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #e0e0e0;
+                border-radius: 4px;
+                margin-top: 16px;
+                padding-top: 16px;
+                padding-bottom: 16px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+        """)
         tab_order_layout = QVBoxLayout(tab_order_group)
 
         order_info = QLabel('调整标签页的显示顺序。点击标签后使用上下按钮调整位置。')
@@ -481,15 +568,34 @@ class SettingsDialog(QDialog):
         self.tab_list = QListWidget()
         self.tab_list.setMinimumHeight(200)
         self.tab_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.tab_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QListWidget::item {
+                padding: 10px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QListWidget::item:selected {
+                background-color: #e8f0fe;
+                color: #202124;
+            }
+        """)
         order_control_layout.addWidget(self.tab_list, 1)
 
         btn_layout = QVBoxLayout()
 
         self.move_up_btn = QPushButton('▲ 上移')
+        self.move_up_btn.setMinimumWidth(80)
+        self.move_up_btn.setMinimumHeight(35)
         self.move_up_btn.clicked.connect(self.move_tab_up)
         btn_layout.addWidget(self.move_up_btn)
 
         self.move_down_btn = QPushButton('▼ 下移')
+        self.move_down_btn.setMinimumWidth(80)
+        self.move_down_btn.setMinimumHeight(35)
         self.move_down_btn.clicked.connect(self.move_tab_down)
         btn_layout.addWidget(self.move_down_btn)
 
@@ -501,6 +607,21 @@ class SettingsDialog(QDialog):
         layout.addWidget(tab_order_group)
 
         highlight_group = QGroupBox('标签页高亮')
+        highlight_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #e0e0e0;
+                border-radius: 4px;
+                margin-top: 16px;
+                padding-top: 16px;
+                padding-bottom: 16px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+        """)
         highlight_layout = QVBoxLayout(highlight_group)
 
         highlight_info = QLabel('选择需要特殊高亮显示的标签页（常用模块前置提示）。')
@@ -511,6 +632,17 @@ class SettingsDialog(QDialog):
         self.highlight_checkboxes = {}
         for tab_key, tab_label in SettingsManager.TAB_LABELS.items():
             check = QCheckBox(tab_label)
+            check.setStyleSheet("""
+                QCheckBox {
+                    spacing: 10px;
+                    padding: 5px;
+                    font-size: 14px;
+                }
+                QCheckBox::indicator {
+                    width: 20px;
+                    height: 20px;
+                }
+            """)
             self.highlight_checkboxes[tab_key] = check
             highlight_layout.addWidget(check)
 
@@ -519,7 +651,7 @@ class SettingsDialog(QDialog):
         color_row.addWidget(color_label)
 
         self.highlight_color_label = QLabel()
-        self.highlight_color_label.setFixedSize(100, 30)
+        self.highlight_color_label.setFixedSize(120, 40)
         self.highlight_color_label.setStyleSheet("""
             QLabel {
                 background-color: #ff9800;
@@ -529,7 +661,8 @@ class SettingsDialog(QDialog):
         """)
         color_row.addWidget(self.highlight_color_label)
 
-        self.highlight_color_btn = QPushButton('选择颜色...')
+        self.highlight_color_btn = QPushButton('选择颜色')
+        self.highlight_color_btn.setMinimumHeight(38)
         self.highlight_color_btn.clicked.connect(self.choose_highlight_color)
         color_row.addWidget(self.highlight_color_btn)
 
