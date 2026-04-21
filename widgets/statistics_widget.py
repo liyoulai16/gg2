@@ -25,6 +25,12 @@ class StatisticsWidget(QWidget):
         self.init_ui()
         self.refresh_data()
 
+    def eventFilter(self, obj, event):
+        if event.type() == event.Type.Wheel:
+            if isinstance(obj, (QDoubleSpinBox, QSpinBox, QDateEdit)):
+                return True
+        return super().eventFilter(obj, event)
+
     def init_ui(self):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -69,6 +75,7 @@ class StatisticsWidget(QWidget):
         self.start_date_edit.setCalendarPopup(True)
         self.start_date_edit.setFixedHeight(36)
         self.start_date_edit.setEnabled(False)
+        self.start_date_edit.installEventFilter(self)
         filter_layout.addWidget(start_label)
         filter_layout.addWidget(self.start_date_edit)
 
@@ -78,6 +85,7 @@ class StatisticsWidget(QWidget):
         self.end_date_edit.setCalendarPopup(True)
         self.end_date_edit.setFixedHeight(36)
         self.end_date_edit.setEnabled(False)
+        self.end_date_edit.installEventFilter(self)
         filter_layout.addWidget(end_label)
         filter_layout.addWidget(self.end_date_edit)
 
@@ -151,6 +159,7 @@ class StatisticsWidget(QWidget):
         self.year_spin.setRange(2000, 2100)
         self.year_spin.setValue(datetime.now().year)
         self.year_spin.setFixedHeight(36)
+        self.year_spin.installEventFilter(self)
         self.year_spin.valueChanged.connect(self.refresh_data)
         monthly_filter_layout.addWidget(QLabel('年份:'))
         monthly_filter_layout.addWidget(self.year_spin)
