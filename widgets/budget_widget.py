@@ -121,10 +121,12 @@ class BudgetWidget(QWidget):
         self.budget_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.budget_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.budget_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.budget_table.verticalHeader().setDefaultSectionSize(50)
+        self.budget_table.verticalHeader().setDefaultSectionSize(60)
+        self.budget_table.horizontalHeader().setDefaultSectionSize(60)
         self.budget_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.budget_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.budget_table.setAlternatingRowColors(True)
+        self.budget_table.setMinimumHeight(200)
         budget_layout.addWidget(self.budget_table)
 
         splitter.addWidget(budget_group)
@@ -160,10 +162,12 @@ class BudgetWidget(QWidget):
         self.category_table.setHorizontalHeaderLabels(['分类', '预算金额', '已支出', '剩余', '进度', '操作'])
         self.category_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.category_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        self.category_table.verticalHeader().setDefaultSectionSize(50)
+        self.category_table.verticalHeader().setDefaultSectionSize(65)
+        self.category_table.horizontalHeader().setDefaultSectionSize(65)
         self.category_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.category_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.category_table.setAlternatingRowColors(True)
+        self.category_table.setMinimumHeight(250)
         category_layout.addWidget(self.category_table)
 
         splitter.addWidget(category_group)
@@ -298,7 +302,7 @@ class BudgetWidget(QWidget):
             btn_layout.setSpacing(8)
 
             delete_btn = QPushButton('删除')
-            delete_btn.setFixedSize(70, 32)
+            delete_btn.setFixedSize(70, 36)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
@@ -352,7 +356,8 @@ class BudgetWidget(QWidget):
                 progress = int(min(cat['percentage'], 100))
                 progress_bar = QProgressBar()
                 progress_bar.setValue(progress)
-                progress_bar.setMaximumHeight(20)
+                progress_bar.setMinimumHeight(28)
+                progress_bar.setMaximumHeight(32)
                 if progress >= 100:
                     progress_bar.setStyleSheet("""
                         QProgressBar {
@@ -401,7 +406,7 @@ class BudgetWidget(QWidget):
 
             if cat['budget_amount'] > 0:
                 delete_btn = QPushButton('删除')
-                delete_btn.setFixedSize(70, 32)
+                delete_btn.setFixedSize(70, 36)
                 delete_btn.setStyleSheet("""
                     QPushButton {
                         background-color: #ea4335;
