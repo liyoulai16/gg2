@@ -6,5 +6,6 @@ from .budget_widget import BudgetWidget
 from .debt_widget import DebtWidget
 from .quick_entry_widget import QuickEntryWidget
 from .quick_entry_settings import QuickEntrySettingsDialog
+from .recurring_widget import RecurringWidget
 
-__all__ = ['TransactionWidget', 'AccountWidget', 'CategoryWidget', 'StatisticsWidget', 'BudgetWidget', 'DebtWidget', 'QuickEntryWidget', 'QuickEntrySettingsDialog']
+__all__ = ['TransactionWidget', 'AccountWidget', 'CategoryWidget', 'StatisticsWidget', 'BudgetWidget', 'DebtWidget', 'QuickEntryWidget', 'QuickEntrySettingsDialog', 'RecurringWidget']

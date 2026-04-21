@@ -82,6 +82,7 @@ class Database:
         self._create_default_account(cursor)
         self._create_debt_tables(cursor)
         self._create_quick_entry_presets_table(cursor)
+        self._create_recurring_tables(cursor)
 
         conn.commit()
         conn.close()
@@ -1394,3 +1395,417 @@ class Database:
             conn.close()
             print(f"Error getting app setting: {e}")
             return default_value
+
+    def _create_recurring_tables(self, cursor):
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS recurring_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                account_id INTEGER NOT NULL,
+                category_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                description TEXT,
+                frequency TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT,
+                last_generated_date TEXT,
+                is_active INTEGER DEFAULT 1,
+                auto_generate INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (account_id) REFERENCES accounts (id),
+                FOREIGN KEY (category_id) REFERENCES categories (id)
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS recurring_generation_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recurring_id INTEGER NOT NULL,
+                transaction_id INTEGER,
+                generated_date TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (recurring_id) REFERENCES recurring_transactions (id),
+                FOREIGN KEY (transaction_id) REFERENCES transactions (id)
+            )
+        ''')
+
+    def add_recurring_transaction(self, name, type_, account_id, category_id, amount, 
+                                   description='', frequency='monthly', start_date=None, 
+                                   end_date=None, auto_generate=True):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            if start_date is None:
+                start_date = datetime.now().strftime('%Y-%m-%d')
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            cursor.execute('''
+                INSERT INTO recurring_transactions 
+                (name, type, account_id, category_id, amount, description, 
+                 frequency, start_date, end_date, is_active, auto_generate, 
+                 created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+            ''', (name, type_, account_id, category_id, amount, description,
+                  frequency, start_date, end_date, 1 if auto_generate else 0, now, now))
+
+            conn.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            conn.rollback()
+            print(f"Error adding recurring transaction: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def get_all_recurring_transactions(self, active_only=True):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        query = '''
+            SELECT r.id, r.name, r.type, r.account_id, a.name as account_name,
+                   r.category_id, c.name as category_name, r.amount, r.description,
+                   r.frequency, r.start_date, r.end_date, r.last_generated_date,
+                   r.is_active, r.auto_generate, r.created_at, r.updated_at
+            FROM recurring_transactions r
+            JOIN accounts a ON r.account_id = a.id
+            JOIN categories c ON r.category_id = c.id
+            WHERE 1=1
+        '''
+        params = []
+
+        if active_only:
+            query += ' AND r.is_active = 1'
+
+        query += ' ORDER BY r.created_at DESC'
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            'id': row[0],
+            'name': row[1],
+            'type': row[2],
+            'account_id': row[3],
+            'account_name': row[4],
+            'category_id': row[5],
+            'category_name': row[6],
+            'amount': row[7],
+            'description': row[8],
+            'frequency': row[9],
+            'start_date': row[10],
+            'end_date': row[11],
+            'last_generated_date': row[12],
+            'is_active': bool(row[13]),
+            'auto_generate': bool(row[14]),
+            'created_at': row[15],
+            'updated_at': row[16]
+        } for row in rows]
+
+    def get_recurring_transaction(self, recurring_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT r.id, r.name, r.type, r.account_id, a.name as account_name,
+                   r.category_id, c.name as category_name, r.amount, r.description,
+                   r.frequency, r.start_date, r.end_date, r.last_generated_date,
+                   r.is_active, r.auto_generate, r.created_at, r.updated_at
+            FROM recurring_transactions r
+            JOIN accounts a ON r.account_id = a.id
+            JOIN categories c ON r.category_id = c.id
+            WHERE r.id = ?
+        ''', (recurring_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                'id': row[0],
+                'name': row[1],
+                'type': row[2],
+                'account_id': row[3],
+                'account_name': row[4],
+                'category_id': row[5],
+                'category_name': row[6],
+                'amount': row[7],
+                'description': row[8],
+                'frequency': row[9],
+                'start_date': row[10],
+                'end_date': row[11],
+                'last_generated_date': row[12],
+                'is_active': bool(row[13]),
+                'auto_generate': bool(row[14]),
+                'created_at': row[15],
+                'updated_at': row[16]
+            }
+        return None
+
+    def update_recurring_transaction(self, recurring_id, name=None, type_=None, 
+                                      account_id=None, category_id=None, amount=None,
+                                      description=None, frequency=None, start_date=None,
+                                      end_date=None, is_active=None, auto_generate=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            updates = []
+            params = []
+
+            if name is not None:
+                updates.append('name = ?')
+                params.append(name)
+            if type_ is not None:
+                updates.append('type = ?')
+                params.append(type_)
+            if account_id is not None:
+                updates.append('account_id = ?')
+                params.append(account_id)
+            if category_id is not None:
+                updates.append('category_id = ?')
+                params.append(category_id)
+            if amount is not None:
+                updates.append('amount = ?')
+                params.append(amount)
+            if description is not None:
+                updates.append('description = ?')
+                params.append(description)
+            if frequency is not None:
+                updates.append('frequency = ?')
+                params.append(frequency)
+            if start_date is not None:
+                updates.append('start_date = ?')
+                params.append(start_date)
+            if end_date is not None:
+                updates.append('end_date = ?')
+                params.append(end_date)
+            if is_active is not None:
+                updates.append('is_active = ?')
+                params.append(1 if is_active else 0)
+            if auto_generate is not None:
+                updates.append('auto_generate = ?')
+                params.append(1 if auto_generate else 0)
+
+            if not updates:
+                conn.close()
+                return True
+
+            updates.append('updated_at = ?')
+            params.append(now)
+            params.append(recurring_id)
+
+            query = f"UPDATE recurring_transactions SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error updating recurring transaction: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def delete_recurring_transaction(self, recurring_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM recurring_generation_log WHERE recurring_id = ?', (recurring_id,))
+            cursor.execute('DELETE FROM recurring_transactions WHERE id = ?', (recurring_id,))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error deleting recurring transaction: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_next_generation_date(self, start_date, frequency, last_date=None):
+        try:
+            current = datetime.strptime(start_date, '%Y-%m-%d')
+            if last_date:
+                current = datetime.strptime(last_date, '%Y-%m-%d')
+
+            if frequency == 'daily':
+                next_date = current + timedelta(days=1)
+            elif frequency == 'weekly':
+                next_date = current + timedelta(weeks=1)
+            elif frequency == 'monthly':
+                if current.month == 12:
+                    next_month = 1
+                    next_year = current.year + 1
+                else:
+                    next_month = current.month + 1
+                    next_year = current.year
+                _, days_in_month = monthrange(next_year, next_month)
+                day = min(current.day, days_in_month)
+                next_date = datetime(next_year, next_month, day)
+            elif frequency == 'yearly':
+                try:
+                    next_date = current.replace(year=current.year + 1)
+                except ValueError:
+                    next_date = current.replace(year=current.year + 1, day=28)
+            else:
+                next_date = current
+
+            return next_date.strftime('%Y-%m-%d')
+        except Exception as e:
+            print(f"Error calculating next generation date: {e}")
+            return None
+
+    def has_been_generated(self, recurring_id, date):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*) FROM recurring_generation_log 
+            WHERE recurring_id = ? AND generated_date = ?
+        ''', (recurring_id, date))
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count > 0
+
+    def log_generation(self, recurring_id, generated_date, status, transaction_id=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute('''
+                INSERT INTO recurring_generation_log 
+                (recurring_id, transaction_id, generated_date, status, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (recurring_id, transaction_id, generated_date, status, now))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error logging generation: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def generate_due_recurring_transactions(self):
+        today = datetime.now().strftime('%Y-%m-%d')
+        recurring_list = self.get_all_recurring_transactions(active_only=True)
+        generated_transactions = []
+        reminders = []
+
+        for recurring in recurring_list:
+            if not recurring['is_active']:
+                continue
+
+            start_date = recurring['start_date']
+            end_date = recurring['end_date']
+            last_generated = recurring['last_generated_date']
+            frequency = recurring['frequency']
+            auto_generate = recurring['auto_generate']
+
+            if end_date and today > end_date:
+                continue
+
+            if today < start_date:
+                continue
+
+            current_date = start_date
+            if last_generated:
+                current_date = self.get_next_generation_date(start_date, frequency, last_generated)
+
+            dates_to_generate = []
+            while current_date and current_date <= today:
+                if not self.has_been_generated(recurring['id'], current_date):
+                    dates_to_generate.append(current_date)
+                current_date = self.get_next_generation_date(start_date, frequency, current_date)
+
+            for gen_date in dates_to_generate:
+                if auto_generate:
+                    success = self.add_transaction(
+                        account_id=recurring['account_id'],
+                        category_id=recurring['category_id'],
+                        type_=recurring['type'],
+                        amount=recurring['amount'],
+                        description=recurring['description'] or '',
+                        date=gen_date
+                    )
+
+                    if success:
+                        self.log_generation(recurring['id'], gen_date, 'generated')
+                        self.update_recurring_transaction(recurring['id'], last_generated_date=gen_date)
+                        generated_transactions.append({
+                            'recurring_name': recurring['name'],
+                            'date': gen_date,
+                            'amount': recurring['amount'],
+                            'type': recurring['type']
+                        })
+                    else:
+                        self.log_generation(recurring['id'], gen_date, 'failed')
+                else:
+                    self.log_generation(recurring['id'], gen_date, 'reminder')
+                    reminders.append({
+                        'recurring_name': recurring['name'],
+                        'date': gen_date,
+                        'amount': recurring['amount'],
+                        'type': recurring['type'],
+                        'account_name': recurring['account_name'],
+                        'category_name': recurring['category_name']
+                    })
+
+        return {
+            'generated': generated_transactions,
+            'reminders': reminders
+        }
+
+    def get_recurring_reminders(self, days_ahead=7):
+        today = datetime.now().strftime('%Y-%m-%d')
+        today_dt = datetime.strptime(today, '%Y-%m-%d')
+        reminder_date = (today_dt + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+
+        recurring_list = self.get_all_recurring_transactions(active_only=True)
+        reminders = []
+
+        for recurring in recurring_list:
+            if not recurring['is_active']:
+                continue
+
+            start_date = recurring['start_date']
+            end_date = recurring['end_date']
+            last_generated = recurring['last_generated_date']
+            frequency = recurring['frequency']
+
+            if end_date and start_date > end_date:
+                continue
+
+            current_date = start_date
+            if last_generated:
+                current_date = self.get_next_generation_date(start_date, frequency, last_generated)
+
+            while current_date:
+                if current_date > reminder_date:
+                    break
+
+                if today <= current_date <= reminder_date:
+                    if not self.has_been_generated(recurring['id'], current_date):
+                        days_until = (datetime.strptime(current_date, '%Y-%m-%d') - today_dt).days
+                        type_label = '收入' if recurring['type'] == 'income' else '支出'
+                        if days_until == 0:
+                            message = f'【{type_label}】{recurring["name"]} 今天到期！金额: ¥{recurring["amount"]:,.2f}'
+                        else:
+                            message = f'【{type_label}】{recurring["name"]} 将在 {days_until} 天后到期！金额: ¥{recurring["amount"]:,.2f}'
+                        
+                        reminders.append({
+                            'recurring_id': recurring['id'],
+                            'name': recurring['name'],
+                            'type': recurring['type'],
+                            'amount': recurring['amount'],
+                            'date': current_date,
+                            'days_until': days_until,
+                            'account_name': recurring['account_name'],
+                            'category_name': recurring['category_name'],
+                            'auto_generate': recurring['auto_generate'],
+                            'message': message
+                        })
+
+                current_date = self.get_next_generation_date(start_date, frequency, current_date)
+
+        return reminders
