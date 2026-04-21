@@ -4,10 +4,11 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QComboBox, QRadioButton,
     QButtonGroup, QDateEdit, QMessageBox, QDoubleSpinBox,
     QSplitter, QFrame, QHeaderView, QAbstractItemView,
-    QApplication
+    QApplication, QCheckBox, QSpinBox, QDialog
 )
 from PyQt6.QtCore import Qt, QDate
 from datetime import datetime
+from .transaction_management_dialogs import TransactionSplitDialog, TransactionMergeDialog
 
 
 class TransactionWidget(QWidget):
@@ -165,12 +166,53 @@ class TransactionWidget(QWidget):
         stats_layout.addStretch()
         layout.addWidget(stats_group)
 
+        toolbar_layout = QHBoxLayout()
+        
+        self.select_all_check = QCheckBox('全选')
+        self.select_all_check.stateChanged.connect(self.on_select_all_changed)
+        toolbar_layout.addWidget(self.select_all_check)
+
+        toolbar_layout.addSpacing(20)
+
+        merge_btn = QPushButton('🔗 合并选中')
+        merge_btn.setMinimumWidth(100)
+        merge_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4285f4;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3367d6;
+            }
+        """)
+        merge_btn.clicked.connect(self.merge_selected_transactions)
+        toolbar_layout.addWidget(merge_btn)
+
+        toolbar_layout.addStretch()
+
+        self.selected_count_label = QLabel('已选择: 0 条')
+        self.selected_count_label.setStyleSheet('font-size: 14px; color: #666;')
+        toolbar_layout.addWidget(self.selected_count_label)
+
+        layout.addLayout(toolbar_layout)
+
         self.trans_table = QTableWidget()
-        self.trans_table.setColumnCount(7)
+        self.trans_table.setColumnCount(8)
         self.trans_table.setHorizontalHeaderLabels([
-            '日期', '账户', '类型', '分类', '金额', '描述', '操作'
+            '选择', '日期', '账户', '类型', '分类', '金额', '描述', '操作'
         ])
-        self.trans_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.trans_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.trans_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.trans_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.trans_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.trans_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        self.trans_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        self.trans_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        self.trans_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
         self.trans_table.verticalHeader().setDefaultSectionSize(60)
         self.trans_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.trans_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -254,20 +296,34 @@ class TransactionWidget(QWidget):
         self.update_stats(transactions)
 
     def update_transaction_table(self, transactions):
+        self.current_transactions = transactions
         self.trans_table.setRowCount(len(transactions))
 
         for row, trans in enumerate(transactions):
-            self.trans_table.setItem(row, 0, QTableWidgetItem(trans['date']))
-            self.trans_table.setItem(row, 1, QTableWidgetItem(trans['account_name']))
+            checkbox = QCheckBox()
+            checkbox.setProperty('transaction_id', trans['id'])
+            checkbox.setProperty('account_id', trans['account_id'])
+            checkbox.setProperty('type', trans['type'])
+            checkbox.stateChanged.connect(lambda state, r=row: self.on_checkbox_changed(r, state))
+            
+            checkbox_widget = QWidget()
+            checkbox_layout = QHBoxLayout(checkbox_widget)
+            checkbox_layout.setContentsMargins(10, 0, 0, 0)
+            checkbox_layout.addWidget(checkbox)
+            checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.trans_table.setCellWidget(row, 0, checkbox_widget)
+
+            self.trans_table.setItem(row, 1, QTableWidgetItem(trans['date']))
+            self.trans_table.setItem(row, 2, QTableWidgetItem(trans['account_name']))
 
             type_item = QTableWidgetItem('收入' if trans['type'] == 'income' else '支出')
             if trans['type'] == 'income':
                 type_item.setForeground(Qt.GlobalColor.darkGreen)
             else:
                 type_item.setForeground(Qt.GlobalColor.darkRed)
-            self.trans_table.setItem(row, 2, type_item)
+            self.trans_table.setItem(row, 3, type_item)
 
-            self.trans_table.setItem(row, 3, QTableWidgetItem(trans['category_name']))
+            self.trans_table.setItem(row, 4, QTableWidgetItem(trans['category_name']))
 
             amount = trans['amount']
             amount_str = f'+¥ {amount:,.2f}' if trans['type'] == 'income' else f'-¥ {amount:,.2f}'
@@ -276,24 +332,42 @@ class TransactionWidget(QWidget):
                 amount_item.setForeground(Qt.GlobalColor.darkGreen)
             else:
                 amount_item.setForeground(Qt.GlobalColor.darkRed)
-            self.trans_table.setItem(row, 4, amount_item)
+            self.trans_table.setItem(row, 5, amount_item)
 
-            self.trans_table.setItem(row, 5, QTableWidgetItem(trans['description'] or '-'))
+            self.trans_table.setItem(row, 6, QTableWidgetItem(trans['description'] or '-'))
 
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
             btn_layout.setContentsMargins(0, 0, 0, 0)
-            btn_layout.setSpacing(8)
+            btn_layout.setSpacing(5)
+
+            split_btn = QPushButton('拆分')
+            split_btn.setFixedSize(55, 32)
+            split_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #4285f4;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #3367d6;
+                }
+            """)
+            split_btn.clicked.connect(lambda checked, t_id=trans['id']: self.split_transaction(t_id))
+            btn_layout.addWidget(split_btn)
 
             delete_btn = QPushButton('删除')
-            delete_btn.setFixedSize(70, 32)
+            delete_btn.setFixedSize(55, 32)
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ea4335;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-size: 13px;
+                    font-size: 12px;
                     font-weight: bold;
                 }
                 QPushButton:hover {
@@ -303,7 +377,10 @@ class TransactionWidget(QWidget):
             delete_btn.clicked.connect(lambda checked, t_id=trans['id']: self.delete_transaction(t_id))
             btn_layout.addWidget(delete_btn)
 
-            self.trans_table.setCellWidget(row, 6, btn_widget)
+            self.trans_table.setCellWidget(row, 7, btn_widget)
+
+        self.select_all_check.setChecked(False)
+        self.update_selected_count()
 
     def update_stats(self, transactions):
         total_income = sum(t['amount'] for t in transactions if t['type'] == 'income')
@@ -323,16 +400,82 @@ class TransactionWidget(QWidget):
     def delete_transaction(self, transaction_id):
         reply = QMessageBox.question(
             self, '确认删除',
-            '确定要删除这条记录吗？此操作不可恢复。',
+            '确定要删除这条记录吗？\n记录将被移至回收站，可随时恢复。',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
 
         if reply == QMessageBox.StandardButton.Yes:
             if self.db.delete_transaction(transaction_id):
-                QMessageBox.information(self, '成功', '记录已删除！')
+                QMessageBox.information(self, '成功', '记录已移至回收站！')
                 self.refresh_data()
                 main_window = self.find_main_window()
                 if main_window:
                     main_window.update_status_bar()
             else:
                 QMessageBox.critical(self, '错误', '删除记录失败！')
+
+    def on_select_all_changed(self, state):
+        checked = state == Qt.CheckState.Checked
+        for row in range(self.trans_table.rowCount()):
+            widget = self.trans_table.cellWidget(row, 0)
+            if widget:
+                checkbox = widget.layout().itemAt(0).widget()
+                if checkbox:
+                    checkbox.setChecked(checked)
+        self.update_selected_count()
+
+    def on_checkbox_changed(self, row, state):
+        self.update_selected_count()
+
+    def update_selected_count(self):
+        count = 0
+        for row in range(self.trans_table.rowCount()):
+            widget = self.trans_table.cellWidget(row, 0)
+            if widget:
+                checkbox = widget.layout().itemAt(0).widget()
+                if checkbox and checkbox.isChecked():
+                    count += 1
+        self.selected_count_label.setText(f'已选择: {count} 条')
+
+    def get_selected_transactions(self):
+        selected = []
+        for row in range(self.trans_table.rowCount()):
+            widget = self.trans_table.cellWidget(row, 0)
+            if widget:
+                checkbox = widget.layout().itemAt(0).widget()
+                if checkbox and checkbox.isChecked():
+                    if hasattr(self, 'current_transactions') and row < len(self.current_transactions):
+                        selected.append(self.current_transactions[row])
+        return selected
+
+    def split_transaction(self, transaction_id):
+        dialog = TransactionSplitDialog(self.db, transaction_id, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.refresh_data()
+            main_window = self.find_main_window()
+            if main_window:
+                main_window.update_status_bar()
+
+    def merge_selected_transactions(self):
+        selected = self.get_selected_transactions()
+        if len(selected) < 2:
+            QMessageBox.warning(self, '警告', '请至少选择2条交易进行合并！')
+            return
+
+        account_id = selected[0]['account_id']
+        type_ = selected[0]['type']
+        
+        for trans in selected[1:]:
+            if trans['account_id'] != account_id:
+                QMessageBox.warning(self, '警告', '只能合并同一账户的交易！')
+                return
+            if trans['type'] != type_:
+                QMessageBox.warning(self, '警告', '只能合并相同类型的交易！')
+                return
+
+        dialog = TransactionMergeDialog(self.db, selected, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.refresh_data()
+            main_window = self.find_main_window()
+            if main_window:
+                main_window.update_status_bar()

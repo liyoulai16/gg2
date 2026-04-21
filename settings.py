@@ -83,7 +83,7 @@ class SettingsManager(QObject):
         'show_currency_symbol': True,
         'decimal_places': 2,
         'date_format': 'yyyy-MM-dd',
-        'tab_order': ['transaction', 'account', 'category', 'statistics', 'budget', 'debt', 'recurring'],
+        'tab_order': ['transaction', 'account', 'category', 'statistics', 'budget', 'debt', 'recurring', 'trash'],
         'highlight_tabs': [],
         'highlight_color': '#ff9800',
     }
@@ -96,6 +96,7 @@ class SettingsManager(QObject):
         'budget': '💰 预算管理',
         'debt': '💸 债务管理',
         'recurring': '🔄 周期性账单',
+        'trash': '🗑️ 回收站',
     }
 
     def __init__(self, db=None):

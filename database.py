@@ -47,10 +47,14 @@ class Database:
                 description TEXT,
                 date TEXT NOT NULL,
                 created_at TEXT NOT NULL,
+                is_deleted INTEGER DEFAULT 0,
+                deleted_at TEXT,
                 FOREIGN KEY (account_id) REFERENCES accounts (id),
                 FOREIGN KEY (category_id) REFERENCES categories (id)
             )
         ''')
+
+        self._migrate_transactions_table(cursor)
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS budgets (
@@ -142,6 +146,18 @@ class Database:
                 INSERT OR IGNORE INTO categories (name, type, created_at)
                 VALUES (?, ?, ?)
             ''', (name, type_, now))
+
+    def _migrate_transactions_table(self, cursor):
+        try:
+            cursor.execute("PRAGMA table_info(transactions)")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            if 'is_deleted' not in columns:
+                cursor.execute('ALTER TABLE transactions ADD COLUMN is_deleted INTEGER DEFAULT 0')
+            if 'deleted_at' not in columns:
+                cursor.execute('ALTER TABLE transactions ADD COLUMN deleted_at TEXT')
+        except Exception as e:
+            print(f"Error migrating transactions table: {e}")
 
     def _create_default_account(self, cursor):
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -282,20 +298,24 @@ class Database:
         finally:
             conn.close()
 
-    def get_transactions(self, account_id=None, start_date=None, end_date=None, type_=None):
+    def get_transactions(self, account_id=None, start_date=None, end_date=None, type_=None, include_deleted=False):
         conn = self.get_connection()
         cursor = conn.cursor()
 
         query = '''
             SELECT t.id, t.account_id, a.name as account_name, 
                    t.category_id, c.name as category_name,
-                   t.type, t.amount, t.description, t.date, t.created_at
+                   t.type, t.amount, t.description, t.date, t.created_at,
+                   t.is_deleted, t.deleted_at
             FROM transactions t
             JOIN accounts a ON t.account_id = a.id
             JOIN categories c ON t.category_id = c.id
             WHERE 1=1
         '''
         params = []
+
+        if not include_deleted:
+            query += ' AND t.is_deleted = 0'
 
         if account_id:
             query += ' AND t.account_id = ?'
@@ -316,32 +336,43 @@ class Database:
         rows = cursor.fetchall()
         conn.close()
 
-        return [{
-            'id': row[0],
-            'account_id': row[1],
-            'account_name': row[2],
-            'category_id': row[3],
-            'category_name': row[4],
-            'type': row[5],
-            'amount': row[6],
-            'description': row[7],
-            'date': row[8],
-            'created_at': row[9]
-        } for row in rows]
+        result = []
+        for row in rows:
+            item = {
+                'id': row[0],
+                'account_id': row[1],
+                'account_name': row[2],
+                'category_id': row[3],
+                'category_name': row[4],
+                'type': row[5],
+                'amount': row[6],
+                'description': row[7],
+                'date': row[8],
+                'created_at': row[9]
+            }
+            if len(row) > 10:
+                item['is_deleted'] = bool(row[10])
+                item['deleted_at'] = row[11]
+            result.append(item)
+        return result
 
-    def delete_transaction(self, transaction_id):
+    def soft_delete_transaction(self, transaction_id):
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('SELECT account_id, type, amount FROM transactions WHERE id = ?', (transaction_id,))
+            cursor.execute('SELECT account_id, type, amount, is_deleted FROM transactions WHERE id = ?', (transaction_id,))
             row = cursor.fetchone()
             if not row:
                 conn.close()
                 return False
 
-            account_id, type_, amount = row
+            account_id, type_, amount, is_deleted = row
+            if is_deleted:
+                conn.close()
+                return False
 
-            cursor.execute('DELETE FROM transactions WHERE id = ?', (transaction_id,))
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute('UPDATE transactions SET is_deleted = 1, deleted_at = ? WHERE id = ?', (now, transaction_id))
 
             if type_ == 'income':
                 cursor.execute('UPDATE accounts SET balance = balance - ? WHERE id = ?', (amount, account_id))
@@ -352,8 +383,213 @@ class Database:
             return True
         except Exception as e:
             conn.rollback()
-            print(f"Error deleting transaction: {e}")
+            print(f"Error soft deleting transaction: {e}")
             return False
+        finally:
+            conn.close()
+
+    def restore_transaction(self, transaction_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT account_id, type, amount, is_deleted FROM transactions WHERE id = ?', (transaction_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False
+
+            account_id, type_, amount, is_deleted = row
+            if not is_deleted:
+                conn.close()
+                return False
+
+            cursor.execute('UPDATE transactions SET is_deleted = 0, deleted_at = NULL WHERE id = ?', (transaction_id,))
+
+            if type_ == 'income':
+                cursor.execute('UPDATE accounts SET balance = balance + ? WHERE id = ?', (amount, account_id))
+            else:
+                cursor.execute('UPDATE accounts SET balance = balance - ? WHERE id = ?', (amount, account_id))
+
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error restoring transaction: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def permanently_delete_transaction(self, transaction_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM transactions WHERE id = ? AND is_deleted = 1', (transaction_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            conn.rollback()
+            print(f"Error permanently deleting transaction: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_deleted_transactions(self):
+        return self.get_transactions(include_deleted=True)
+
+    def delete_transaction(self, transaction_id):
+        return self.soft_delete_transaction(transaction_id)
+
+    def split_transaction(self, transaction_id, split_details):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT account_id, category_id, type, amount, description, date, is_deleted
+                FROM transactions WHERE id = ?
+            ''', (transaction_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False, "交易不存在"
+
+            account_id, category_id, type_, original_amount, original_desc, date, is_deleted = row
+            if is_deleted:
+                conn.close()
+                return False, "无法拆分已删除的交易"
+
+            total_split_amount = sum(d['amount'] for d in split_details)
+            if abs(total_split_amount - original_amount) > 0.01:
+                conn.close()
+                return False, f"拆分金额总和({total_split_amount})必须等于原交易金额({original_amount})"
+
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            cursor.execute('UPDATE transactions SET is_deleted = 1, deleted_at = ? WHERE id = ?', (now, transaction_id))
+
+            for detail in split_details:
+                split_category_id = detail.get('category_id', category_id)
+                split_amount = detail['amount']
+                split_desc = detail.get('description', '')
+
+                cursor.execute('''
+                    INSERT INTO transactions (account_id, category_id, type, amount, description, date, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (account_id, split_category_id, type_, split_amount, split_desc, date, now))
+
+            conn.commit()
+            return True, "拆分成功"
+        except Exception as e:
+            conn.rollback()
+            print(f"Error splitting transaction: {e}")
+            return False, str(e)
+        finally:
+            conn.close()
+
+    def merge_transactions(self, transaction_ids, merge_category_id=None, merge_description=''):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            if len(transaction_ids) < 2:
+                conn.close()
+                return False, "至少需要2条交易才能合并"
+
+            placeholders = ','.join(['?'] * len(transaction_ids))
+            cursor.execute(f'''
+                SELECT id, account_id, category_id, type, amount, description, date, is_deleted
+                FROM transactions WHERE id IN ({placeholders})
+            ''', transaction_ids)
+            rows = cursor.fetchall()
+
+            if len(rows) != len(transaction_ids):
+                conn.close()
+                return False, "部分交易不存在"
+
+            account_id = None
+            type_ = None
+            date = None
+            total_amount = 0
+            first_category_id = None
+
+            for row in rows:
+                t_id, t_account_id, t_category_id, t_type, t_amount, t_desc, t_date, t_is_deleted = row
+                if t_is_deleted:
+                    conn.close()
+                    return False, "无法合并已删除的交易"
+
+                if account_id is None:
+                    account_id = t_account_id
+                    type_ = t_type
+                    date = t_date
+                    first_category_id = t_category_id
+                else:
+                    if t_account_id != account_id:
+                        conn.close()
+                        return False, "只能合并同一账户的交易"
+                    if t_type != type_:
+                        conn.close()
+                        return False, "只能合并相同类型的交易"
+
+                total_amount += t_amount
+
+            if merge_category_id is None:
+                merge_category_id = first_category_id
+
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            cursor.execute(f'''
+                UPDATE transactions SET is_deleted = 1, deleted_at = ? WHERE id IN ({placeholders})
+            ''', [now] + transaction_ids)
+
+            cursor.execute('''
+                INSERT INTO transactions (account_id, category_id, type, amount, description, date, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (account_id, merge_category_id, type_, total_amount, merge_description, date, now))
+
+            conn.commit()
+            return True, "合并成功"
+        except Exception as e:
+            conn.rollback()
+            print(f"Error merging transactions: {e}")
+            return False, str(e)
+        finally:
+            conn.close()
+
+    def get_transaction_by_id(self, transaction_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT t.id, t.account_id, a.name as account_name, 
+                       t.category_id, c.name as category_name,
+                       t.type, t.amount, t.description, t.date, t.created_at,
+                       t.is_deleted, t.deleted_at
+                FROM transactions t
+                JOIN accounts a ON t.account_id = a.id
+                JOIN categories c ON t.category_id = c.id
+                WHERE t.id = ?
+            ''', (transaction_id,))
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                return {
+                    'id': row[0],
+                    'account_id': row[1],
+                    'account_name': row[2],
+                    'category_id': row[3],
+                    'category_name': row[4],
+                    'type': row[5],
+                    'amount': row[6],
+                    'description': row[7],
+                    'date': row[8],
+                    'created_at': row[9],
+                    'is_deleted': bool(row[10]),
+                    'deleted_at': row[11]
+                }
+            return None
+        except Exception as e:
+            print(f"Error getting transaction: {e}")
+            return None
         finally:
             conn.close()
 
@@ -380,7 +616,7 @@ class Database:
         cursor.execute('''
             SELECT type, SUM(amount) 
             FROM transactions 
-            WHERE date >= ? AND date <= ?
+            WHERE date >= ? AND date <= ? AND is_deleted = 0
             GROUP BY type
         ''', (start_date, end_date))
         rows = cursor.fetchall()
@@ -440,7 +676,7 @@ class Database:
             SELECT c.name, SUM(t.amount) as total
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
-            WHERE t.type = ?
+            WHERE t.type = ? AND t.is_deleted = 0
         '''
         params = [type_]
 
@@ -478,7 +714,7 @@ class Database:
             cursor.execute('''
                 SELECT date, type, SUM(amount)
                 FROM transactions
-                WHERE date >= ? AND date <= ? AND type = ?
+                WHERE date >= ? AND date <= ? AND type = ? AND is_deleted = 0
                 GROUP BY date, type
                 ORDER BY date
             ''', (start_date, end_date, type_))
@@ -486,7 +722,7 @@ class Database:
             cursor.execute('''
                 SELECT date, type, SUM(amount)
                 FROM transactions
-                WHERE date >= ? AND date <= ?
+                WHERE date >= ? AND date <= ? AND is_deleted = 0
                 GROUP BY date, type
                 ORDER BY date
             ''', (start_date, end_date))
@@ -532,7 +768,7 @@ class Database:
                 type,
                 SUM(amount) as total
             FROM transactions
-            WHERE strftime('%Y', date) = ?
+            WHERE strftime('%Y', date) = ? AND is_deleted = 0
             GROUP BY month, type
             ORDER BY month
         ''', (str(year),))
@@ -712,7 +948,7 @@ class Database:
         cursor.execute('''
             SELECT COALESCE(SUM(amount), 0)
             FROM transactions
-            WHERE type = 'expense' AND date >= ? AND date <= ?
+            WHERE type = 'expense' AND date >= ? AND date <= ? AND is_deleted = 0
         ''', (start_date, end_date))
         total_spent = cursor.fetchone()[0] or 0
 
@@ -736,7 +972,7 @@ class Database:
                 FROM categories c
                 LEFT JOIN category_budgets cb ON c.id = cb.category_id AND cb.budget_id = ?
                 LEFT JOIN transactions t ON c.id = t.category_id AND t.type = 'expense' 
-                    AND t.date >= ? AND t.date <= ?
+                    AND t.date >= ? AND t.date <= ? AND t.is_deleted = 0
                 WHERE c.type = 'expense'
                 GROUP BY c.id, c.name, cb.amount
             ''', (budget_id, start_date, end_date))

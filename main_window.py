@@ -9,7 +9,8 @@ from database import Database
 from widgets import (
     TransactionWidget, AccountWidget, CategoryWidget, 
     StatisticsWidget, BudgetWidget, DebtWidget, RecurringWidget,
-    ExportDialog, ImportDialog, BackupRestoreDialog, SettingsDialog
+    ExportDialog, ImportDialog, BackupRestoreDialog, SettingsDialog,
+    TrashWidget
 )
 from widgets.quick_entry_widget import QuickEntryWidget
 from global_hotkey import HotkeyManager
@@ -65,6 +66,7 @@ class MainWindow(QMainWindow):
         self.budget_widget = BudgetWidget(self.db)
         self.debt_widget = DebtWidget(self.db)
         self.recurring_widget = RecurringWidget(self.db)
+        self.trash_widget = TrashWidget(self.db)
 
         self._widget_map = {
             'transaction': self.transaction_widget,
@@ -74,6 +76,7 @@ class MainWindow(QMainWindow):
             'budget': self.budget_widget,
             'debt': self.debt_widget,
             'recurring': self.recurring_widget,
+            'trash': self.trash_widget,
         }
 
         self.setup_tabs_from_settings()
@@ -267,6 +270,8 @@ class MainWindow(QMainWindow):
                 self.debt_widget.refresh_data()
             elif tab_key == 'recurring':
                 self.recurring_widget.refresh_data()
+            elif tab_key == 'trash':
+                self.trash_widget.refresh_data()
 
     def update_status_bar(self):
         total_balance = self.db.get_total_balance()
@@ -408,6 +413,7 @@ class MainWindow(QMainWindow):
         self.budget_widget.refresh_data()
         self.debt_widget.refresh_data()
         self.recurring_widget.refresh_data()
+        self.trash_widget.refresh_data()
         self.update_status_bar()
 
     def closeEvent(self, event):
