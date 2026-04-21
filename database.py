@@ -80,9 +80,43 @@ class Database:
 
         self._create_default_categories(cursor)
         self._create_default_account(cursor)
+        self._create_debt_tables(cursor)
 
         conn.commit()
         conn.close()
+
+    def _create_debt_tables(self, cursor):
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS debts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL,
+                counterparty TEXT NOT NULL,
+                amount REAL NOT NULL,
+                remaining_amount REAL NOT NULL,
+                interest_rate REAL DEFAULT 0,
+                start_date TEXT NOT NULL,
+                due_date TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                description TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS debt_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                debt_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                due_date TEXT NOT NULL,
+                paid_date TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                description TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (debt_id) REFERENCES debts (id)
+            )
+        ''')
 
     def _create_default_categories(self, cursor):
         default_categories = [
@@ -762,3 +796,390 @@ class Database:
                     })
 
         return alerts
+
+    def add_debt(self, type_, counterparty, amount, interest_rate=0, start_date=None, due_date=None, description=''):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            if start_date is None:
+                start_date = datetime.now().strftime('%Y-%m-%d')
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            cursor.execute('''
+                INSERT INTO debts (type, counterparty, amount, remaining_amount, interest_rate, 
+                                   start_date, due_date, status, description, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+            ''', (type_, counterparty, amount, amount, interest_rate, start_date, due_date, description, now, now))
+
+            conn.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            conn.rollback()
+            print(f"Error adding debt: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def get_all_debts(self, type_=None, status=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        query = '''
+            SELECT id, type, counterparty, amount, remaining_amount, interest_rate,
+                   start_date, due_date, status, description, created_at, updated_at
+            FROM debts WHERE 1=1
+        '''
+        params = []
+
+        if type_:
+            query += ' AND type = ?'
+            params.append(type_)
+        if status:
+            query += ' AND status = ?'
+            params.append(status)
+
+        query += ' ORDER BY created_at DESC'
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            'id': row[0],
+            'type': row[1],
+            'counterparty': row[2],
+            'amount': row[3],
+            'remaining_amount': row[4],
+            'interest_rate': row[5],
+            'start_date': row[6],
+            'due_date': row[7],
+            'status': row[8],
+            'description': row[9],
+            'created_at': row[10],
+            'updated_at': row[11]
+        } for row in rows]
+
+    def get_debt(self, debt_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, type, counterparty, amount, remaining_amount, interest_rate,
+                   start_date, due_date, status, description, created_at, updated_at
+            FROM debts WHERE id = ?
+        ''', (debt_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                'id': row[0],
+                'type': row[1],
+                'counterparty': row[2],
+                'amount': row[3],
+                'remaining_amount': row[4],
+                'interest_rate': row[5],
+                'start_date': row[6],
+                'due_date': row[7],
+                'status': row[8],
+                'description': row[9],
+                'created_at': row[10],
+                'updated_at': row[11]
+            }
+        return None
+
+    def update_debt(self, debt_id, counterparty=None, amount=None, remaining_amount=None,
+                    interest_rate=None, due_date=None, status=None, description=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            updates = []
+            params = []
+
+            if counterparty is not None:
+                updates.append('counterparty = ?')
+                params.append(counterparty)
+            if amount is not None:
+                updates.append('amount = ?')
+                params.append(amount)
+            if remaining_amount is not None:
+                updates.append('remaining_amount = ?')
+                params.append(remaining_amount)
+            if interest_rate is not None:
+                updates.append('interest_rate = ?')
+                params.append(interest_rate)
+            if due_date is not None:
+                updates.append('due_date = ?')
+                params.append(due_date)
+            if status is not None:
+                updates.append('status = ?')
+                params.append(status)
+            if description is not None:
+                updates.append('description = ?')
+                params.append(description)
+
+            if not updates:
+                conn.close()
+                return True
+
+            updates.append('updated_at = ?')
+            params.append(now)
+            params.append(debt_id)
+
+            query = f"UPDATE debts SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error updating debt: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def delete_debt(self, debt_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM debt_payments WHERE debt_id = ?', (debt_id,))
+            cursor.execute('DELETE FROM debts WHERE id = ?', (debt_id,))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error deleting debt: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def add_debt_payment(self, debt_id, amount, due_date, description=''):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            cursor.execute('''
+                INSERT INTO debt_payments (debt_id, amount, due_date, status, description, created_at, updated_at)
+                VALUES (?, ?, ?, 'pending', ?, ?, ?)
+            ''', (debt_id, amount, due_date, description, now, now))
+
+            conn.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            conn.rollback()
+            print(f"Error adding debt payment: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def get_debt_payments(self, debt_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, debt_id, amount, due_date, paid_date, status, description, created_at, updated_at
+            FROM debt_payments WHERE debt_id = ? ORDER BY due_date
+        ''', (debt_id,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            'id': row[0],
+            'debt_id': row[1],
+            'amount': row[2],
+            'due_date': row[3],
+            'paid_date': row[4],
+            'status': row[5],
+            'description': row[6],
+            'created_at': row[7],
+            'updated_at': row[8]
+        } for row in rows]
+
+    def mark_payment_paid(self, payment_id, paid_date=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            if paid_date is None:
+                paid_date = datetime.now().strftime('%Y-%m-%d')
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            cursor.execute('SELECT debt_id, amount FROM debt_payments WHERE id = ?', (payment_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False
+
+            debt_id, payment_amount = row
+
+            cursor.execute('''
+                UPDATE debt_payments 
+                SET status = 'paid', paid_date = ?, updated_at = ? 
+                WHERE id = ?
+            ''', (paid_date, now, payment_id))
+
+            cursor.execute('''
+                UPDATE debts 
+                SET remaining_amount = remaining_amount - ?, updated_at = ? 
+                WHERE id = ?
+            ''', (payment_amount, now, debt_id))
+
+            cursor.execute('SELECT remaining_amount FROM debts WHERE id = ?', (debt_id,))
+            remaining = cursor.fetchone()[0]
+            if remaining <= 0:
+                cursor.execute('''
+                    UPDATE debts SET status = 'completed', updated_at = ? WHERE id = ?
+                ''', (now, debt_id))
+
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error marking payment paid: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def delete_debt_payment(self, payment_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT debt_id, amount, status FROM debt_payments WHERE id = ?', (payment_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False
+
+            debt_id, payment_amount, status = row
+
+            if status == 'paid':
+                cursor.execute('''
+                    UPDATE debts 
+                    SET remaining_amount = remaining_amount + ?, status = 'active', updated_at = ? 
+                    WHERE id = ?
+                ''', (payment_amount, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), debt_id))
+
+            cursor.execute('DELETE FROM debt_payments WHERE id = ?', (payment_id,))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"Error deleting debt payment: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_debt_reminders(self, days_ahead=7):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        today = datetime.now().strftime('%Y-%m-%d')
+        reminder_date = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+
+        cursor.execute('''
+            SELECT d.id, d.type, d.counterparty, d.remaining_amount, d.due_date,
+                   p.id as payment_id, p.amount as payment_amount, p.due_date as payment_due_date
+            FROM debts d
+            LEFT JOIN debt_payments p ON d.id = p.debt_id AND p.status = 'pending'
+            WHERE d.status = 'active'
+            ORDER BY d.id
+        ''')
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        reminders = []
+        today_dt = datetime.strptime(today, '%Y-%m-%d')
+
+        for row in rows:
+            debt_id, debt_type, counterparty, remaining, due_date, payment_id, payment_amount, payment_due_date = row
+
+            due_dates_to_check = []
+            if due_date:
+                due_dates_to_check.append({
+                    'type': 'debt',
+                    'date': due_date,
+                    'amount': remaining
+                })
+            if payment_due_date:
+                due_dates_to_check.append({
+                    'type': 'payment',
+                    'date': payment_due_date,
+                    'amount': payment_amount,
+                    'payment_id': payment_id
+                })
+
+            for due in due_dates_to_check:
+                try:
+                    due_dt = datetime.strptime(due['date'], '%Y-%m-%d')
+                    days_until_due = (due_dt - today_dt).days
+
+                    if days_until_due < 0:
+                        debt_type_label = '借出' if debt_type == 'lend' else '借入'
+                        if due['type'] == 'debt':
+                            message = f'🔴 【{debt_type_label}】{counterparty} 的债务已逾期 {abs(days_until_due)} 天！剩余金额: ¥{due["amount"]:,.2f}'
+                        else:
+                            message = f'🔴 【{debt_type_label}】{counterparty} 的还款计划已逾期 {abs(days_until_due)} 天！金额: ¥{due["amount"]:,.2f}'
+                        reminders.append({
+                            'debt_id': debt_id,
+                            'type': debt_type,
+                            'counterparty': counterparty,
+                            'amount': due['amount'],
+                            'due_date': due['date'],
+                            'days_until_due': days_until_due,
+                            'status': 'overdue',
+                            'message': message
+                        })
+                    elif days_until_due <= days_ahead:
+                        debt_type_label = '借出' if debt_type == 'lend' else '借入'
+                        if due['type'] == 'debt':
+                            if days_until_due == 0:
+                                message = f'🟡 【{debt_type_label}】{counterparty} 的债务今天到期！剩余金额: ¥{due["amount"]:,.2f}'
+                            else:
+                                message = f'🟡 【{debt_type_label}】{counterparty} 的债务将在 {days_until_due} 天后到期！剩余金额: ¥{due["amount"]:,.2f}'
+                        else:
+                            if days_until_due == 0:
+                                message = f'🟡 【{debt_type_label}】{counterparty} 的还款计划今天到期！金额: ¥{due["amount"]:,.2f}'
+                            else:
+                                message = f'🟡 【{debt_type_label}】{counterparty} 的还款计划将在 {days_until_due} 天后到期！金额: ¥{due["amount"]:,.2f}'
+                        reminders.append({
+                            'debt_id': debt_id,
+                            'type': debt_type,
+                            'counterparty': counterparty,
+                            'amount': due['amount'],
+                            'due_date': due['date'],
+                            'days_until_due': days_until_due,
+                            'status': 'upcoming',
+                            'message': message
+                        })
+                except ValueError:
+                    continue
+
+        return reminders
+
+    def get_debt_summary(self):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT type, status, SUM(remaining_amount) as total, COUNT(*) as count
+            FROM debts GROUP BY type, status
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+
+        summary = {
+            'lend_active': {'amount': 0, 'count': 0},
+            'lend_completed': {'amount': 0, 'count': 0},
+            'borrow_active': {'amount': 0, 'count': 0},
+            'borrow_completed': {'amount': 0, 'count': 0}
+        }
+
+        for row in rows:
+            type_, status, amount, count = row
+            amount = amount or 0
+            key = f"{type_}_{status}"
+            if key in summary:
+                summary[key] = {'amount': amount, 'count': count}
+
+        return summary
